@@ -53,6 +53,10 @@ jobs:
         with:
           name: python-app
           path: .
+
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
           
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v2
@@ -60,4 +64,3 @@ jobs:
         with:
           app-name: 'basic-auth-blocked'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EF611979421244BCB611F0D771702469 }}
