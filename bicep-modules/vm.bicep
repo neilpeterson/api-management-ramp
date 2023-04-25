@@ -6,7 +6,7 @@ param location string = resourceGroup().location
 param name string
 
 resource publicIPAddress 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
-  name: name
+  name: '${name}-vm'
   location: location
   properties: {
     publicIPAllocationMethod: 'Dynamic'

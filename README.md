@@ -33,7 +33,8 @@ az group create --name webapp-amsterdam-001 --location westeurope
 az deployment group create --template-file ./app.bicep --resource-group webapp-amsterdam-001    
 
 
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://appams001.azurewebsites.net/sum
+# This will fail unless run from the vm. 
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://basic-auth-blocked.azurewebsites.net//sum
 ```
 
 ## API Management Integration
@@ -41,7 +42,6 @@ curl --header "Content-Type: application/json" --request POST --data '{"num1": 5
 Configured manually at this point. When exposed to the public internet, the API can be called with the following command. Working on internal only access.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://barcelona-api-mgmt.azure-api.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://api-mgmt-ramp-001.azure-api.net/sum
 
 ```
-

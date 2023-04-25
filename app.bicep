@@ -1,10 +1,7 @@
-param name string = 'appams002'
+param name string = 'api-mgmt-ramp-003'
 param location string = resourceGroup().location
-param deployVM bool = true
 
-@secure()
-param adminPassword string
-
+// creates an Azure App Service Plan with Premium V3 tier specifications, which includes 1 virtual CPU and is intended for Linux-based web applications
 resource appServicePlan 'Microsoft.Web/serverfarms@2020-12-01' = {
   name: name
   location: location
@@ -48,8 +45,15 @@ resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = {
   }
 }
 
+resource nsgAPIMgmt 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
+  name: name
+  location: location
+  properties: {
+  }
+}
+
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2019-11-01' = {
-  name: 'appaccess'
+  name: name
   location: location
   properties: {
     addressSpace: {
@@ -62,6 +66,9 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2019-11-01' = {
         name: 'default'
         properties: {
           addressPrefix: '10.0.0.0/24'
+          networkSecurityGroup: {
+            id: nsgAPIMgmt.id
+          }
         }
       }
     ]
@@ -69,7 +76,7 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2019-11-01' = {
 }
 
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
-  name: 'appaccess'
+  name: name
   location: location
   properties: {
     privateLinkServiceConnections: [
@@ -91,7 +98,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
 
 resource dnsNetworkLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
   parent: privateDnsZones
-  name: 'appaccess'
+  name: name
   location: 'global'
   properties: {
     registrationEnabled: false
@@ -100,7 +107,6 @@ resource dnsNetworkLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2
     }
   }
 }
-
 
 resource privateEndpointDNS 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2022-09-01' = {
   name: 'default'
@@ -135,12 +141,129 @@ resource privateDnsZonesApp 'Microsoft.Network/privateDnsZones/A@2018-09-01' = {
   }
 }
 
-module virtualmachine './bicep-modules/vm.bicep' = if (deployVM) {
-  name: 'appaccess'
-  params: {
-    adminPassword: adminPassword
-    location: location
-    virtualNetworkID: virtualNetwork.id
-    name: name
+resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
+  name: '${name}-api-mgmt'
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: '${name}-api-mgmt'
+    }
+  }
+}
+
+resource nsgRuleAPIManagement 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'ManagementEndpointForAzurePortalAndPowershellInbound'
+  parent: nsgAPIMgmt
+  properties: {
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '3443'
+    sourceAddressPrefix: 'ApiManagement'
+    destinationAddressPrefix: 'VirtualNetwork'
+    access: 'Allow'
+    priority: 120
+    direction: 'Inbound'
+  }
+}
+
+resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'SecureClientCommunicationToAPIManagementInbound'
+  parent: nsgAPIMgmt
+  properties: {
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '443'
+    sourceAddressPrefix: ('Internet')
+    destinationAddressPrefix: 'VirtualNetwork'
+    access: 'Allow'
+    priority: 110
+    direction: 'Inbound'
+  }
+}
+
+resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
+  name: name
+  location: location
+  sku:{
+    capacity: 1
+    name: 'Developer'
+  }
+  properties:{
+    virtualNetworkType: 'External'
+    publisherEmail: 'nepeters@microsoft.com'
+    publisherName: 'nepeters.com'
+    virtualNetworkConfiguration: {
+      subnetResourceId: '${virtualNetwork.id}/subnets/default'
+    }
+    publicIpAddressId: publicIPAddressAPIMgmt.id
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+}
+
+resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
+  parent: apiManagementInstance
+  name: name
+  properties: {
+    description: 'api-mgmt-ramp-001'
+    url: 'https://api-mgmt-ramp-002.azurewebsites.net'
+    protocol: 'http'
+    resourceId: 'https://management.azure.com/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/api-mgmt-ramp-002/providers/Microsoft.Web/sites/api-mgmt-ramp-002'
+  }
+}
+
+resource apiSum 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
+  parent: apiManagementInstance
+  name: name
+  properties: {
+    displayName: 'api-mgmt-ramp-001'
+    apiRevision: '1'
+    subscriptionRequired: false
+    protocols: [
+      'https'
+    ]
+    authenticationSettings: {
+      oAuth2AuthenticationSettings: []
+      openidAuthenticationSettings: []
+    }
+    subscriptionKeyParameterNames: {
+      header: 'Ocp-Apim-Subscription-Key'
+      query: 'subscription-key'
+    }
+    isCurrent: true
+    path: webApplication.properties.defaultHostName
+  }
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+  name: '${name}-01'
+  location: location
+  properties: {
+    enabledForDeployment: false
+    enabledForTemplateDeployment: false
+    enabledForDiskEncryption: false
+    tenantId: subscription().tenantId
+    publicNetworkAccess: 'Disabled'
+    accessPolicies: [
+      {
+        objectId: apiManagementInstance.identity.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+          ]
+        }
+        tenantId: subscription().tenantId
+      }
+    ]
+    sku: {
+      name: 'standard'
+      family: 'A'
+    }
   }
 }
