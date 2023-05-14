@@ -41,7 +41,8 @@ curl --header "Content-Type: application/json" --request POST --data '{"num1": 5
 Configured manually at this point. When exposed to the public internet, the API can be called with the following command. Working on internal only access.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 67, "num2": 7}' https://giants-friday-001.azure-api.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 67, "num2": 7}' https://giants-saturday-003.azure-api.net/sum
+/sum
 
 ```
 
@@ -66,12 +67,4 @@ https://techcommunity.microsoft.com/t5/azure-paas-blog/integrating-api-managemen
 https://medium.com/@jw_ng/using-azure-application-gateway-with-api-management-service-f9b9b2cd1731
 
 
-
-
-52.149.196.13 (app-gateway-front-end.eastus.cloudapp.azure.com)
-
-
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://20.241.209.101/sum
-
-https://giants-friday-005.azure-api.net
-10.0.0.4
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' http://giants-saturday-003-app-gateway.eastus.cloudapp.azure.com/sum
