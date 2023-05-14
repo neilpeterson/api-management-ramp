@@ -9,7 +9,7 @@ def sum():
     result = num1 + num2
     return {'result': result}
 
-@app.route('/get', methods=['POST'])
+@app.route('/', methods=['POST'])
 def sum():
     return {'result': 'You get me..'}
 
