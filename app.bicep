@@ -1,7 +1,123 @@
-param name string = 'api-mgmt-ramp-003'
+param name string = 'giants-saturday-003'
 param location string = resourceGroup().location
 
-// creates an Azure App Service Plan with Premium V3 tier specifications, which includes 1 virtual CPU and is intended for Linux-based web applications
+// Network stuff
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2019-11-01' = {
+  name: name
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: 'api-management'
+        properties: {
+          addressPrefix: '10.0.0.0/24'
+          networkSecurityGroup: {
+            id: nsgAPIMgmt.id
+          }
+        }
+      }
+      {
+        name: 'app-gateway'
+        properties: {
+          addressPrefix: '10.0.1.0/24'
+          networkSecurityGroup: {
+            id: nsgAppGateway.id
+          }
+        }
+      }
+      {
+        name: 'app-service'
+        properties: {
+          addressPrefix: '10.0.2.0/24'
+        }
+      }
+    ]
+  }
+}
+
+resource nsgAppGateway 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
+  name: 'app-gateway'
+  location: location
+  properties: {
+  }
+}
+
+resource nsgRuleAPPGatewayIngressPrivate 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'appgw-in'
+  parent: nsgAppGateway
+  properties: {
+    protocol: '*'
+    sourcePortRange: '*'
+    destinationPortRange: '65200-65535'
+    sourceAddressPrefix: 'GatewayManager'
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 100
+    direction: 'Inbound'
+  }
+}
+
+// Remove once  Front door is in place
+resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'appgw-in-internet'
+  parent: nsgAppGateway
+  properties: {
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '443'
+    sourceAddressPrefix: 'Internet'
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 110
+    direction: 'Inbound'
+  }
+}
+
+resource nsgAPIMgmt 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
+  name: 'api-mgmt'
+  location: location
+  properties: {
+  }
+}
+
+resource nsgRuleAPIManagement 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'ManagementEndpointForAzurePortalAndPowershellInbound'
+  parent: nsgAPIMgmt
+  properties: {
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '3443'
+    sourceAddressPrefix: 'ApiManagement'
+    destinationAddressPrefix: 'VirtualNetwork'
+    access: 'Allow'
+    priority: 120
+    direction: 'Inbound'
+  }
+}
+
+resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'SecureClientCommunicationToAPIManagementInbound'
+  parent: nsgAPIMgmt
+  properties: {
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '443'
+    sourceAddressPrefix: ('Internet')
+    destinationAddressPrefix: 'VirtualNetwork'
+    access: 'Allow'
+    priority: 210
+    direction: 'Inbound'
+  }
+}
+
+// Add NSG for App Service
+
+// App stuff
 resource appServicePlan 'Microsoft.Web/serverfarms@2020-12-01' = {
   name: name
   location: location
@@ -45,40 +161,12 @@ resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = {
   }
 }
 
-resource nsgAPIMgmt 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
-  name: name
-  location: location
-  properties: {
-  }
-}
-
-resource virtualNetwork 'Microsoft.Network/virtualNetworks@2019-11-01' = {
-  name: name
-  location: location
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        '10.0.0.0/16'
-      ]
-    }
-    subnets: [
-      {
-        name: 'default'
-        properties: {
-          addressPrefix: '10.0.0.0/24'
-          networkSecurityGroup: {
-            id: nsgAPIMgmt.id
-          }
-        }
-      }
-    ]
-  }
-}
-
+// Private endpoint for App Service
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
-  name: name
+  name: 'app-service'
   location: location
   properties: {
+    customNetworkInterfaceName: 'nic-app-service'
     privateLinkServiceConnections: [
       {
         name: name
@@ -91,11 +179,12 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
       }
     ]
     subnet: {
-      id: '${virtualNetwork.id}/subnets/default'
+      id: '${virtualNetwork.id}/subnets/app-service'
     }
   }
 }
 
+// TODO - need to understand this beetter
 resource dnsNetworkLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
   parent: privateDnsZones
   name: name
@@ -128,6 +217,7 @@ resource privateDnsZones 'Microsoft.Network/privateDnsZones@2018-09-01' = {
   location: 'global'
 }
 
+// TODO Add a record for the api management instance
 resource privateDnsZonesApp 'Microsoft.Network/privateDnsZones/A@2018-09-01' = {
   parent: privateDnsZones
   name: name
@@ -141,6 +231,7 @@ resource privateDnsZonesApp 'Microsoft.Network/privateDnsZones/A@2018-09-01' = {
   }
 }
 
+// DO I need this once Front door is in place - for management maybe?
 resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
   name: '${name}-api-mgmt'
   location: location
@@ -155,33 +246,18 @@ resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01'
   }
 }
 
-resource nsgRuleAPIManagement 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'ManagementEndpointForAzurePortalAndPowershellInbound'
-  parent: nsgAPIMgmt
-  properties: {
-    protocol: 'Tcp'
-    sourcePortRange: '*'
-    destinationPortRange: '3443'
-    sourceAddressPrefix: 'ApiManagement'
-    destinationAddressPrefix: 'VirtualNetwork'
-    access: 'Allow'
-    priority: 120
-    direction: 'Inbound'
+// DO I need this once Front door is in place - for management maybe?
+resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
+  name: '${name}-app-gateway'
+  location: location
+  sku: {
+    name: 'Standard'
   }
-}
-
-resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'SecureClientCommunicationToAPIManagementInbound'
-  parent: nsgAPIMgmt
   properties: {
-    protocol: 'Tcp'
-    sourcePortRange: '*'
-    destinationPortRange: '443'
-    sourceAddressPrefix: ('Internet')
-    destinationAddressPrefix: 'VirtualNetwork'
-    access: 'Allow'
-    priority: 110
-    direction: 'Inbound'
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: '${name}-app-gateway'
+    }
   }
 }
 
@@ -193,11 +269,11 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     name: 'Developer'
   }
   properties:{
-    virtualNetworkType: 'External'
+    virtualNetworkType: 'Internal'
     publisherEmail: 'nepeters@microsoft.com'
     publisherName: 'nepeters.com'
     virtualNetworkConfiguration: {
-      subnetResourceId: '${virtualNetwork.id}/subnets/default'
+      subnetResourceId: '${virtualNetwork.id}/subnets/api-management'
     }
     publicIpAddressId: publicIPAddressAPIMgmt.id
   }
@@ -206,64 +282,64 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   }
 }
 
-resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
-  parent: apiManagementInstance
-  name: name
-  properties: {
-    description: 'api-mgmt-ramp-001'
-    url: 'https://api-mgmt-ramp-002.azurewebsites.net'
-    protocol: 'http'
-    resourceId: 'https://management.azure.com/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/api-mgmt-ramp-002/providers/Microsoft.Web/sites/api-mgmt-ramp-002'
-  }
-}
+// resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
+//   parent: apiManagementInstance
+//   name: name
+//   properties: {
+//     description: 'api-mgmt-ramp-001'
+//     url: 'https://api-mgmt-ramp-002.azurewebsites.net'
+//     protocol: 'http'
+//     resourceId: 'https://management.azure.com/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/api-mgmt-ramp-002/providers/Microsoft.Web/sites/api-mgmt-ramp-002'
+//   }
+// }
 
-resource apiSum 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
-  parent: apiManagementInstance
-  name: name
-  properties: {
-    displayName: 'api-mgmt-ramp-001'
-    apiRevision: '1'
-    subscriptionRequired: false
-    protocols: [
-      'https'
-    ]
-    authenticationSettings: {
-      oAuth2AuthenticationSettings: []
-      openidAuthenticationSettings: []
-    }
-    subscriptionKeyParameterNames: {
-      header: 'Ocp-Apim-Subscription-Key'
-      query: 'subscription-key'
-    }
-    isCurrent: true
-    path: webApplication.properties.defaultHostName
-  }
-}
+// resource apiSum 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
+//   parent: apiManagementInstance
+//   name: name
+//   properties: {
+//     displayName: 'api-mgmt-ramp-001'
+//     apiRevision: '1'
+//     subscriptionRequired: false
+//     protocols: [
+//       'https'
+//     ]
+//     authenticationSettings: {
+//       oAuth2AuthenticationSettings: []
+//       openidAuthenticationSettings: []
+//     }
+//     subscriptionKeyParameterNames: {
+//       header: 'Ocp-Apim-Subscription-Key'
+//       query: 'subscription-key'
+//     }
+//     isCurrent: true
+//     path: webApplication.properties.defaultHostName
+//   }
+// }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: '${name}-01'
-  location: location
-  properties: {
-    enabledForDeployment: false
-    enabledForTemplateDeployment: false
-    enabledForDiskEncryption: false
-    tenantId: subscription().tenantId
-    publicNetworkAccess: 'Disabled'
-    accessPolicies: [
-      {
-        objectId: apiManagementInstance.identity.principalId
-        permissions: {
-          secrets: [
-            'get'
-            'list'
-          ]
-        }
-        tenantId: subscription().tenantId
-      }
-    ]
-    sku: {
-      name: 'standard'
-      family: 'A'
-    }
-  }
-}
+// resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+//   name: '${name}-01'
+//   location: location
+//   properties: {
+//     enabledForDeployment: false
+//     enabledForTemplateDeployment: false
+//     enabledForDiskEncryption: false
+//     tenantId: subscription().tenantId
+//     publicNetworkAccess: 'Disabled'
+//     accessPolicies: [
+//       {
+//         objectId: apiManagementInstance.identity.principalId
+//         permissions: {
+//           secrets: [
+//             'get'
+//             'list'
+//           ]
+//         }
+//         tenantId: subscription().tenantId
+//       }
+//     ]
+//     sku: {
+//       name: 'standard'
+//       family: 'A'
+//     }
+//   }
+// }

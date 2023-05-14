@@ -9,5 +9,9 @@ def sum():
     result = num1 + num2
     return {'result': result}
 
+@app.route('/get', methods=['POST'])
+def sum():
+    return {'result': 'You get me..'}
+
 if __name__ == '__main__':
     app.run(debug=True)

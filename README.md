@@ -22,19 +22,18 @@ python3 -m venv .venv
 ./.venv/bin/Activate.ps1
 pip install -r requirements.txt
 python app.py
-
 curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' http://localhost:5000/sum
 ```
 
 ## Deploy to Azure
 
 ```
-az group create --name webapp-amsterdam-001 --location westeurope
-az deployment group create --template-file ./app.bicep --resource-group webapp-amsterdam-001    
+az group create --name webapp-sammamish-001 --location eastus
+az deployment group create --template-file ./app.bicep --resource-group webapp-sammamish-001  
 
 
 # This will fail unless run from the vm. 
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://basic-auth-blocked.azurewebsites.net//sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://webapp-api-demo-002.azurewebsites.net/sum
 ```
 
 ## API Management Integration
@@ -42,6 +41,37 @@ curl --header "Content-Type: application/json" --request POST --data '{"num1": 5
 Configured manually at this point. When exposed to the public internet, the API can be called with the following command. Working on internal only access.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://api-mgmt-ramp-001.azure-api.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 67, "num2": 7}' https://giants-friday-001.azure-api.net/sum
 
 ```
+
+## Front Door Integration
+
+```
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://webapp-portland-004.azurefd.net/sum
+```
+
+## TODO
+
+- Add subnet for app gateway, associate with app gateway NSG
+- Add WAF Policy
+- PIP for App Gateway
+- ** Perhaps I cannot connect app gateway to api managemrnt private endpoint, new sku to enable
+- Add API to API Manangement instance (looks like there is a controll on the app service resource??)
+- Add App Gateway
+- Add Front Door
+
+https://techcommunity.microsoft.com/t5/azure-paas-blog/integrating-api-management-with-app-gateway-v2/ba-p/1241650
+
+https://medium.com/@jw_ng/using-azure-application-gateway-with-api-management-service-f9b9b2cd1731
+
+
+
+
+52.149.196.13 (app-gateway-front-end.eastus.cloudapp.azure.com)
+
+
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://20.241.209.101/sum
+
+https://giants-friday-005.azure-api.net
+10.0.0.4
