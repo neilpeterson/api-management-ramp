@@ -1,4 +1,4 @@
-param name string = 'giants-saturday-003'
+param name string = 'giants-saturday-005'
 param location string = resourceGroup().location
 
 // Network stuff
@@ -269,7 +269,7 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     name: 'Developer'
   }
   properties:{
-    virtualNetworkType: 'Internal'
+    virtualNetworkType: 'External'
     publisherEmail: 'nepeters@microsoft.com'
     publisherName: 'nepeters.com'
     virtualNetworkConfiguration: {

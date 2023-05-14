@@ -41,15 +41,13 @@ curl --header "Content-Type: application/json" --request POST --data '{"num1": 5
 Configured manually at this point. When exposed to the public internet, the API can be called with the following command. Working on internal only access.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 67, "num2": 7}' https://giants-saturday-003.azure-api.net/sum
-/sum
-
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://giants-saturday-005.azure-api.net/sum
 ```
 
 ## Front Door Integration
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://webapp-portland-004.azurefd.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://giants-saturday-003.azure-api.net/sum
 ```
 
 ## TODO
