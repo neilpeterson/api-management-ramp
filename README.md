@@ -33,7 +33,7 @@ az deployment group create --template-file ./app.bicep --resource-group webapp-s
 
 
 # This will fail unless run from the vm. 
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://webapp-api-demo-002.azurewebsites.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://common-infra-002.azurewebsites.net/sum
 ```
 
 ## API Management Integration
@@ -41,7 +41,7 @@ curl --header "Content-Type: application/json" --request POST --data '{"num1": 5
 Configured manually at this point. When exposed to the public internet, the API can be called with the following command. Working on internal only access.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://giants-saturday-005.azure-api.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://giants-saturday-006.azure-api.net/sum
 ```
 
 ## Front Door Integration
