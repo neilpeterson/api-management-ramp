@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+
+    "baseName": {
+      "value": "thur-full-004"
+    },
+
+    "virtualMachine": {
+      "value": {
+        "deploy": true,
+        "adminUserName": "fitadmin"
+      }
+    },
+
+    "bastionHost": {
+      "value": {
+        "name": "AzureBastionHost",
+        "publicIPAddressName": "pip-bastion",
+        "subnetName": "AzureBastionSubnet",
+        "nsgName": "nsg-hub-bastion",
+        "subnetPrefix": "10.0.4.0/29"
+      }
+    },
+
+    "adminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/apim-domain-cert/providers/Microsoft.KeyVault/vaults/apim-domain-cert-001"
+        },
+        "secretName": "adminPassword"
+      }
+    },
+
+    "appGatewayTrustedRootCert": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/apim-domain-cert/providers/Microsoft.KeyVault/vaults/apim-domain-cert-001"
+        },
+        "secretName": "appGatewayTrustedRootCert"
+      }
+    }
+
+  }
+}

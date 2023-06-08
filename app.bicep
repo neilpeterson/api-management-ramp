@@ -1,18 +1,12 @@
-param name string = 'nepeters-api-lab-004'
-param location string = resourceGroup().location
+param baseName string
 @secure()
 param adminPassword string
-param adminUserName string = 'azureadmin'
+@secure()
+param appGatewayTrustedRootCert string
+param virtualMachine object
+param bastionHost object
+param location string = resourceGroup().location
 
-param bastionHost object = {
-  name: 'AzureBastionHost'
-  publicIPAddressName: 'pip-bastion'
-  subnetName: 'AzureBastionSubnet'
-  nsgName: 'nsg-hub-bastion'
-  subnetPrefix: '10.0.4.0/29'
-}
-
-// Network + NSG for App, API Management, and App Gateway
 resource nsgAPIMgmt 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
   name: 'api-mgmt'
   location: location
@@ -22,7 +16,23 @@ resource nsgAPIMgmt 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
 resource nsgAppGateway 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
   name: 'app-gateway'
   location: location
-  properties: {}
+  properties: {
+    securityRules: [
+      {
+        name: 'app-gateway-in-allow'
+        properties: {
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '65200-65535'
+          sourceAddressPrefix: 'GatewayManager'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
 }
 
 resource nsgAppService 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
@@ -31,7 +41,7 @@ resource nsgAppService 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
   properties: {}
 }
 
-resource nsgBastion 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
+resource nsgBastion 'Microsoft.Network/networkSecurityGroups@2020-06-01' = if (virtualMachine.deploy) {
   name: 'nsgbastion'
   location: location
   properties: {
@@ -140,7 +150,7 @@ resource nsgBastion 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
   }
 }
 
-resource nsgVirtualMachines 'Microsoft.Network/networkSecurityGroups@2020-08-01' = {
+resource nsgVirtualMachines 'Microsoft.Network/networkSecurityGroups@2020-08-01' = if (virtualMachine.deploy)  {
   name: 'nsgVirtualMachines'
   location: location
   properties: {
@@ -178,9 +188,8 @@ resource nsgVirtualMachines 'Microsoft.Network/networkSecurityGroups@2020-08-01'
   }
 }
 
-// VNET with subnet for App, API Management, App Gateway, Virtual Machines, and Bastion
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
-  name: name
+  name: baseName
   location: location
   properties: {
     addressSpace: {
@@ -238,8 +247,8 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   }
 }
 
-resource bastion 'Microsoft.Network/bastionHosts@2020-06-01' = {
-  name: 'bastionhost'
+resource bastion 'Microsoft.Network/bastionHosts@2020-06-01' = if (virtualMachine.deploy) {
+  name: bastionHost.name
   location: location
   properties: {
     ipConfigurations: [
@@ -258,8 +267,8 @@ resource bastion 'Microsoft.Network/bastionHosts@2020-06-01' = {
   }
 }
 
-resource pipBastion 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
-  name: 'bastionpip'
+resource pipBastion 'Microsoft.Network/publicIPAddresses@2020-06-01' = if (virtualMachine.deploy) {
+  name: bastionHost.name
   location: location
   sku: {
     name: 'Standard'
@@ -269,8 +278,8 @@ resource pipBastion 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
   }
 }
 
-resource nicVirtualMachine 'Microsoft.Network/networkInterfaces@2021-05-01' = {
-  name: '${name}-vm'
+resource nicVirtualMachine 'Microsoft.Network/networkInterfaces@2021-05-01' = if (virtualMachine.deploy) {
+  name: '${baseName}-vm'
   location: location
   properties: {
     ipConfigurations: [
@@ -287,16 +296,16 @@ resource nicVirtualMachine 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   }
 }
 
-resource ubuntuVM 'Microsoft.Compute/virtualMachines@2020-12-01' = {
-  name: name
+resource ubuntuVM 'Microsoft.Compute/virtualMachines@2020-12-01' = if (virtualMachine.deploy) {
+  name: baseName
   location: location
   properties: {
     hardwareProfile: {
       vmSize: 'Standard_A2_v2'
     }
     osProfile: {
-      computerName: name
-      adminUsername: adminUserName
+      computerName: baseName
+      adminUsername: virtualMachine.adminUserName
       adminPassword: adminPassword
     }
     storageProfile: {
@@ -307,7 +316,7 @@ resource ubuntuVM 'Microsoft.Compute/virtualMachines@2020-12-01' = {
         version: 'latest'
       }
       osDisk: {
-        name: name
+        name: baseName
         caching: 'ReadWrite'
         createOption: 'FromImage'
       }
@@ -325,7 +334,7 @@ resource ubuntuVM 'Microsoft.Compute/virtualMachines@2020-12-01' = {
   }
 }
 
-resource linuxVMGuestConfigExtension 'Microsoft.Compute/virtualMachines/extensions@2020-12-01' = {
+resource linuxVMGuestConfigExtension 'Microsoft.Compute/virtualMachines/extensions@2020-12-01' = if (virtualMachine.deploy) {
   name: 'AzurePolicyforLinux'
   parent: ubuntuVM
   location: location
@@ -338,21 +347,20 @@ resource linuxVMGuestConfigExtension 'Microsoft.Compute/virtualMachines/extensio
   }
 }
 
-// App Gateway Start - NSG Rules
-resource nsgRuleAPPGatewayIngressPrivate 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'appgw-in'
-  parent: nsgAppGateway
-  properties: {
-    protocol: '*'
-    sourcePortRange: '*'
-    destinationPortRange: '65200-65535'
-    sourceAddressPrefix: 'GatewayManager'
-    destinationAddressPrefix: '*'
-    access: 'Allow'
-    priority: 100
-    direction: 'Inbound'
-  }
-}
+// resource nsgRuleAPPGatewayIngressPrivate 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+//   name: 'appgw-in'
+//   parent: nsgAppGateway
+//   properties: {
+//     protocol: '*'
+//     sourcePortRange: '*'
+//     destinationPortRange: '65200-65535'
+//     sourceAddressPrefix: 'GatewayManager'
+//     destinationAddressPrefix: '*'
+//     access: 'Allow'
+//     priority: 100
+//     direction: 'Inbound'
+//   }
+// }
 
 resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
   name: 'appgw-in-internet'
@@ -369,14 +377,19 @@ resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups
   }
 }
 
-resource pipAppGateway 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
-  name: 'AppGateway'
-  location: location
-  sku: {
-    name: 'Standard'
-  }
+// TODO - remove once Front Door has been added?
+resource nsgRuleAPPGatewayIngressPublic80 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'appgw-in-internet-80'
+  parent: nsgAppGateway
   properties: {
-    publicIPAllocationMethod: 'Static'
+    protocol: 'Tcp'
+    sourcePortRange: '*'
+    destinationPortRange: '80'
+    sourceAddressPrefix: 'Internet'
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 200
+    direction: 'Inbound'
   }
 }
 
@@ -410,9 +423,8 @@ resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules
   }
 }
 
-// App Service + Web App + Source Controll
 resource appServicePlan 'Microsoft.Web/serverfarms@2020-12-01' = {
-  name: name
+  name: baseName
   location: location
   sku: {
     name: 'P1v3'
@@ -428,7 +440,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2020-12-01' = {
 }
 
 resource webApplication 'Microsoft.Web/sites@2021-01-15' = {
-  name: name
+  name: baseName
   location: location
   properties: {
     serverFarmId: appServicePlan.id
@@ -455,7 +467,6 @@ resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = {
   }
 }
 
-// Private endpoint for App Service
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
   name: 'app-service'
   location: location
@@ -463,7 +474,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
     customNetworkInterfaceName: 'nic-app-service'
     privateLinkServiceConnections: [
       {
-        name: name
+        name: baseName
         properties: {
           privateLinkServiceId: webApplication.id
           groupIds: [
@@ -478,7 +489,6 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2022-09-01' = {
   }
 }
 
-// Private DNS ZONE + Link to VNET + DNS Records Set
 resource privateDnsZones 'Microsoft.Network/privateDnsZones@2018-09-01' = {
   name: 'privatelink.azurewebsites.net'
   location: 'global'
@@ -486,7 +496,7 @@ resource privateDnsZones 'Microsoft.Network/privateDnsZones@2018-09-01' = {
 
 resource dnsNetworkLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
   parent: privateDnsZones
-  name: name
+  name: baseName
   location: 'global'
   properties: {
     registrationEnabled: false
@@ -512,7 +522,7 @@ resource privateEndpointDNS 'Microsoft.Network/privateEndpoints/privateDnsZoneGr
 }
 
 resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
-  name: '${name}-api-mgmt'
+  name: '${baseName}-api-mgmt'
   location: location
   sku: {
     name: 'Standard'
@@ -520,13 +530,13 @@ resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01'
   properties: {
     publicIPAllocationMethod: 'Static'
     dnsSettings: {
-      domainNameLabel: '${name}-api-mgmt'
+      domainNameLabel: '${baseName}-api-mgmt'
     }
   }
 }
 
 resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
-  name: '${name}-app-gateway'
+  name: '${baseName}-app-gateway'
   location: location
   sku: {
     name: 'Standard'
@@ -534,13 +544,27 @@ resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-
   properties: {
     publicIPAllocationMethod: 'Static'
     dnsSettings: {
-      domainNameLabel: '${name}-app-gateway'
+      domainNameLabel: '${baseName}-app-gateway'
     }
   }
 }
 
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+  name: '${baseName}-api-mgmt'
+  location: location
+}
+
+module kvRoleAssignment './bicep-modules/vault-access.bicep' = {
+  name: 'vault-access'
+  scope: resourceGroup('apim-domain-cert')
+  params: {
+    managedIdentityId: managedIdentity.properties.principalId
+    namestring: baseName
+  }
+}
+
 resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
-  name: '${name}-api'
+  name: '${baseName}-api'
   location: location
   sku:{
     capacity: 1
@@ -553,22 +577,32 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     virtualNetworkConfiguration: {
       subnetResourceId: '${virtualNetwork.id}/subnets/api-management'
     }
+    hostnameConfigurations: [
+      {
+        type: 'Proxy'
+        hostName: 'api.nepeters-api.com'
+        keyVaultId: 'https://apim-domain-cert-001.vault.azure.net/secrets/nepeters-api'
+        identityClientId: managedIdentity.properties.clientId
+      }
+    ]
     publicIpAddressId: publicIPAddressAPIMgmt.id
   }
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentity.id}': {}
+    }
   }
 }
 
-// Private DNS ZONE + Link to VNET + DNS Records Set
 resource privateDnsZonesAPI 'Microsoft.Network/privateDnsZones@2018-09-01' = {
-  name: 'azure-api.net'
+  name: 'nepeters-api.com'
   location: 'global'
 }
 
 resource dnsNetworkLinkAPI 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2018-09-01' = {
   parent: privateDnsZonesAPI
-  name: name
+  name: baseName
   location: 'global'
   properties: {
     registrationEnabled: false
@@ -579,7 +613,7 @@ resource dnsNetworkLinkAPI 'Microsoft.Network/privateDnsZones/virtualNetworkLink
 }
 
 resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-01' = {
-  name: apiManagementInstance.name
+  name: 'api'
   parent: privateDnsZonesAPI
   properties: {
     ttl: 3600
@@ -591,9 +625,8 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
   }
 }
 
-// Application Gateway Things
 resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2022-11-01' = {
-  name: name
+  name: baseName
   location: location
   properties: {
     customRules: []
@@ -620,7 +653,6 @@ resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApp
   }
 }
 
-
 // resource APIManagementPortalSettings 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
 //   name: 'delegation'
 //   parent: apiManagementInstance
@@ -634,29 +666,15 @@ resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApp
 //   }
 // }
 
-// TODO Add a record for the api management instance (Does this work, might have to update with module to pass URL too)
-// resource privateDnsZonesApp 'Microsoft.Network/privateDnsZones/A@2018-09-01' = {
-//   parent: privateDnsZones
-//   name: apiManagementInstance.name
-//   properties: {
-//     ttl: 10
-//     aRecords: [
-//       {
-//         ipv4Address: apiManagementInstance.properties.privateIPAddresses[0]
-//       }
-//     ]
-//   }
-// }
 
-// Maybe put back in
 // resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
 //   parent: apiManagementInstance
-//   name: name
+//   name: baseName
 //   properties: {
-//     description: 'api-mgmt-ramp-001'
-//     url: 'https://api-mgmt-ramp-002.azurewebsites.net'
+//     description: baseName
+//     url: 'https://${webApplication.properties.defaultHostName}'
 //     protocol: 'http'
-//     resourceId: 'https://management.azure.com/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/api-mgmt-ramp-002/providers/Microsoft.Web/sites/api-mgmt-ramp-002'
+//     resourceId: 'https://${webApplication.id}'
 //   }
 // }
 
@@ -685,30 +703,166 @@ resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApp
 
 // Put back in at some point
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: '${name}-01'
+// resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+//   name: '${name}-01'
+//   location: location
+//   properties: {
+//     enabledForDeployment: false
+//     enabledForTemplateDeployment: false
+//     enabledForDiskEncryption: false
+//     tenantId: subscription().tenantId
+//     publicNetworkAccess: 'Disabled'
+//     accessPolicies: [
+//       {
+//         objectId: apiManagementInstance.identity.principalId
+//         permissions: {
+//           secrets: [
+//             'get'
+//             'list'
+//           ]
+//         }
+//         tenantId: subscription().tenantId
+//       }
+//     ]
+//     sku: {
+//       name: 'standard'
+//       family: 'A'
+//     }
+//   }
+// }
+
+resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' = {
+  name: baseName
   location: location
   properties: {
-    enabledForDeployment: false
-    enabledForTemplateDeployment: false
-    enabledForDiskEncryption: false
-    tenantId: subscription().tenantId
-    publicNetworkAccess: 'Disabled'
-    accessPolicies: [
+    sku: {
+      name: 'WAF_v2'
+      tier: 'WAF_v2'
+    }
+    gatewayIPConfigurations: [
       {
-        objectId: apiManagementInstance.identity.principalId
-        permissions: {
-          secrets: [
-            'get'
-            'list'
-          ]
+        name: 'appGatewayIpConfig'
+        properties: {
+          subnet: {
+            id: '${virtualNetwork.id}/subnets/app-gateway'
+          }
         }
-        tenantId: subscription().tenantId
       }
     ]
-    sku: {
-      name: 'standard'
-      family: 'A'
+    trustedRootCertificates: [
+      {
+        name: 'apim-trusted-root-cert'
+        properties: {
+          data: appGatewayTrustedRootCert
+        }
+      }
+    ]
+    frontendIPConfigurations: [
+      {
+        name: 'appGatewayFrontendIP'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          publicIPAddress: {
+            id: publicIPAddressAPPGateway.id
+          }
+        }
+      }
+    ]
+    frontendPorts: [
+      {
+        name: 'port_80'
+        properties: {
+          port: 80
+        }
+      }
+    ]
+    backendAddressPools: [
+      {
+        name: 'apim-backend-pool'
+        properties: {
+          backendAddresses: [
+            {
+              ipAddress: apiManagementInstance.properties.privateIPAddresses[0]
+            }
+          ]
+        }
+      }
+    ]
+    backendHttpSettingsCollection: [
+      {
+        name: 'apim-gateway-https-setting'
+        properties: {
+          port: 443
+          protocol: 'Https'
+          cookieBasedAffinity: 'Disabled'
+          hostName: 'api.nepeters-api.com'
+          pickHostNameFromBackendAddress: false
+          requestTimeout: 20
+          probe: {
+            id: resourceId('Microsoft.Network/applicationGateways/probes', baseName, 'apim-gateway-probe')
+          }
+          trustedRootCertificates: [
+            {
+              id: resourceId('Microsoft.Network/applicationGateways/trustedRootCertificates', baseName, 'apim-trusted-root-cert')
+            }
+          ]
+        }
+      }
+    ]
+    httpListeners: [
+      {
+        name: 'apim-listener'
+        properties: {
+          frontendIPConfiguration: {
+            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', baseName, 'appGatewayFrontendIP')
+          }
+          frontendPort: {
+            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts', baseName, 'port_80')
+          }
+          protocol: 'Http'
+          requireServerNameIndication: false
+        }
+      }
+    ]
+    requestRoutingRules: [
+      {
+        name: 'apim'
+        properties: {
+          ruleType: 'Basic'
+          priority: 100
+          httpListener: {
+            id: resourceId('Microsoft.Network/applicationGateways/httpListeners', baseName, 'apim-listener')
+          }
+          backendAddressPool: {
+            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', baseName, 'apim-backend-pool')
+          }
+          backendHttpSettings: {
+            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', baseName, 'apim-gateway-https-setting')
+          }
+        }
+      }
+    ]
+    probes: [
+      {
+        name: 'apim-gateway-probe'
+        properties: {
+          protocol: 'Https'
+          path: '/status-0123456789abcdef'
+          interval: 30
+          timeout: 30
+          unhealthyThreshold: 3
+          pickHostNameFromBackendHttpSettings: true
+          minServers: 0
+        }
+      }
+    ]
+    enableHttp2: false
+    autoscaleConfiguration: {
+      minCapacity: 0
+      maxCapacity: 10
+    }
+    firewallPolicy: {
+      id: ApplicationGatewayWAFPolicy.id
     }
   }
 }
