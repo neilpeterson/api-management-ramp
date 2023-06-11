@@ -2,7 +2,8 @@ param managedIdentityId string
 param namestring string
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
-  name: 'apim-domain-cert-001'
+  // TODO - Generalize
+  name: 'ci-full-002'
 }
 
 resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
