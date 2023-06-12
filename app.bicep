@@ -22,10 +22,16 @@ param bastionHost object
 param location string = resourceGroup().location
 
 @description('')
+param customDomainNameAPI string
+
+@description('')
 param keyVaultName string
 
 @description('')
 param keyVaultResourceGroup string
+
+@description('')
+param kayVaultCertificateURI string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
@@ -560,10 +566,8 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     hostnameConfigurations: [
       {
         type: 'Proxy'
-        // - This needs to be generalized
-        hostName: 'api.nepeters-api.com'
-        // - This needs to be generalized
-        keyVaultId: 'https://ci-full-002.vault.azure.net/secrets/nepeters-api'
+        hostName: customDomainNameAPI
+        keyVaultId: kayVaultCertificateURI
         identityClientId: managedIdentity.properties.clientId
       }
     ]
@@ -820,7 +824,7 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
 }
 
 // ------------------------------------
-// - Stat Front Door Deployment
+// - Start Front Door Deployment
 // ------------------------------------
 resource frontDoor 'Microsoft.Network/frontdoors@2021-06-01' = {
   name: baseName

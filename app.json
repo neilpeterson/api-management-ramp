@@ -4,7 +4,7 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-full-003"
+      "value": "sun-full-003"
     },
 
     "deployAppService": {
@@ -31,27 +31,36 @@
     "adminPassword": {
       "reference": {
         "keyVault": {
-          "id": "replace"
+          "id": "/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/apim-domain-cert/providers/Microsoft.KeyVault/vaults/apim-domain-cert-001"
         },
         "secretName": "adminPassword"
       }
     },
 
+    "customDomainNameAPI": {
+      "value": "api.nepeters-api.com"
+    },
+
+
     "appGatewayTrustedRootCert": {
       "reference": {
         "keyVault": {
-          "id": "replace"
+          "id": "/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/apim-domain-cert/providers/Microsoft.KeyVault/vaults/apim-domain-cert-001"
         },
         "secretName": "appGatewayTrustedRootCert"
       }
     },
 
+    "kayVaultCertificateURI": {
+      "value": "https://apim-domain-cert-001.vault.azure.net/secrets/nepeters-api"
+    },
+
     "keyVaultName": {
-      "value": "ci-full0992"
+      "value": "apim-domain-cert-001"
     },
 
     "keyVaultResourceGroup": {
-      "value": "ci-full0992"
+      "value": "apim-domain-cert"
     }
 
   }
