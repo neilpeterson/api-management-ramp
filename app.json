@@ -4,7 +4,7 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-full-002"
+      "value": "ci-full-003"
     },
 
     "deployAppService": {
@@ -44,6 +44,14 @@
         },
         "secretName": "appGatewayTrustedRootCert"
       }
+    },
+
+    "keyVaultName": {
+      "value": "ci-full0992"
+    },
+
+    "keyVaultResourceGroup": {
+      "value": "ci-full0992"
     }
 
   }

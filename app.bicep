@@ -21,6 +21,12 @@ param bastionHost object
 @description('')
 param location string = resourceGroup().location
 
+@description('')
+param keyVaultName string
+
+@description('')
+param keyVaultResourceGroup string
+
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
   location: location
@@ -529,11 +535,11 @@ resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-
 
 module kvRoleAssignment './bicep-modules/vault-access.bicep' = {
   name: 'vault-access'
-  // TODO - need to generalize
-  scope: resourceGroup('ci-full-002')
+  scope: resourceGroup(keyVaultResourceGroup)
   params: {
     managedIdentityId: managedIdentity.properties.principalId
     namestring: baseName
+    keyVaultName: keyVaultName
   }
 }
 
