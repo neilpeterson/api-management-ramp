@@ -11,13 +11,13 @@ Before deploying the ARM template, create a Key Vault, Self Signed SSL Certifica
 Create the Key Vault.
 
 ```
-az group create --name ci-full-002 --location eastus
-az deployment group create --template-file ./bicep-modules/key-vault.bicep --resource-group ci-full-002
+az group create --name ci-lab-full-001 --location eastus
+az deployment group create --template-file ./bicep-modules/key-vault.bicep --resource-group ci-lab-full-001 
 ```
 
 Next, create self signed certificate. Note - Key vault generated self signed certificates do not work ([link to related issue](https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-backend-health-troubleshooting#the-intermediate-certificate-was-not-found)). 
 
-Here is a procediur for dooing so using `openssl`. These steps are detailed here ([link](https://learn.microsoft.com/en-us/azure/application-gateway/self-signed-certificates)). When prompted, enter the requested information. For the Common Name (CN), enter the custom domain name that will be configured for the API Management instance. This same name will be entered when deploying the solution ARM template.
+Here is a procediur for dooing so using `openssl`. These steps are detailed here ([link](https://learn.microsoft.com/en-us/azure/application-gateway/self-signed-certificates)). When prompted, enter the requested information. For the Common Name (CN), enter the custom domain name that will be configured for the API Management instance.
 
 ```
 openssl ecparam -out contoso.key -name prime256v1 -genkey
@@ -34,26 +34,47 @@ Generae a .pfx file from the .crt and .key files, which will be uploaded to Azur
 openssl pkcs12 -export -out api-management-lab.pfx -inkey fabrikam.key -in fabrikam.crt
 ```
 
-Upload the .pfx file to Azure Key Vault.
+Upload the .pfx file to Azure Key Vault. The following command can be used, but requires entering the password, which is done in clear text + stored in the shell history. The certificate can also be manually uploaded to avoid this.
 
 ```
-# Debug - manually doing this for now
-az keyvault certificate import --vault-name ci-full-002 -n api.nepeters-api.com -f ./api-management-lab.pfx
+az keyvault certificate import --vault-name ci-lab-full-001 -n nepeters-api -f ./api-management-lab.pfx --password "replace"
 ```
 
 Export .cer from .pfx file.
 
 ```
-openssl pkcs12 -in domain.name.pfx -clcerts -nokeys -out domain.name.crt
+openssl pkcs12 -in api-management-lab.pfx  -clcerts -nokeys -out domain.name.crt
 ```
 
 Create a Key Vault secret named `appGatewayTrustedRootCert` and add the content of the domain.name.crt file as the secret value.
 
+```
+cat ./domain.name.crt
+```
+
 ## Solution deployment
+
+Update the app.json file with the follling things.
+
+| Property | Description |
+| --- | --- |
+| `baseName` | The base name for the resources created. |
+| `deployAppService` | Set to `true` to deploy the API. |
+| `appGatewayTrustedRootCertSecretName` | Update the ID with the Key Vault ID where the appGatewayTrustedRootCert secret has been created. |
+| `keyVaultName` | The name of the Key Vault created in the pre-requisites. |
+| `keyVaultResourceGroup` | The name of the resource group where the Key Vault was created. |
+
+```
+
+```
 
 ## Post deployment steps
 
-Due to a known issue with API Management traversing the Key Vault firewall with a user assigned managed identity, the custom domain must be manually configured. The issue is documented here and here. There are things we could do to work around so that this is configured at deployment time (deployment script), I may revisit at some point.
+Due to a known issue, the custom domain must be manually configured. The issue is documented [here](https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall) and [here](https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault). There are things we could do to work around so that this is configured at deployment time (deployment script), I may revisit at some point.
+
+### Manually configure custom domain
+
+### Optionally Add API to API Management
 
 ## Validate deployment
 

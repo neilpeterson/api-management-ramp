@@ -4,7 +4,7 @@
   "parameters": {
 
     "baseName": {
-      "value": "tue-full-1005"
+      "value": "ci-lab-full-001"
     },
 
     "deployAppService": {
@@ -14,18 +14,18 @@
     "appGatewayTrustedRootCert": {
       "reference": {
         "keyVault": {
-          "id": "replace-with-keyvault-id"
+          "id": "/subscriptions/7d87d11e-2aaa-4d69-85bf-a1c11503f96d/resourceGroups/ci-lab-full-001/providers/Microsoft.KeyVault/vaults/ci-lab-full-001"
         },
         "secretName": "appGatewayTrustedRootCert"
       }
     },
 
     "keyVaultName": {
-      "value": "apim-domain-cert-001"
+      "value": "ci-lab-full-001"
     },
 
     "keyVaultResourceGroup": {
-      "value": "apim-domain-cert"
+      "value": "ci-lab-full-001"
     }
 
   }

@@ -304,13 +304,14 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
 // ------------------------------------
 // - Start Application Gateway Deployment
 // ------------------------------------
-resource nsgRuleAPPGatewayIngress'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+resource nsgRuleAPPGatewayIngress'Microsoft.Network/networkSecurityGroups/securityRules@2022-11-01' = {
   name: 'appgw-in-FrontDoor'
   parent: nsgAppGateway
   properties: {
     protocol: 'Tcp'
     sourcePortRange: '*'
-    destinationPortRange: '443,80'
+    // TODO - fix this.
+    destinationPortRanges: ['80', '443']
     sourceAddressPrefix: 'AzureFrontDoor.Backend'
     destinationAddressPrefix: 'VirtualNetwork'
     access: 'Allow'
@@ -615,3 +616,4 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-p
 //     path: webApplication.properties.defaultHostName
 //   }
 // }
+
