@@ -19,17 +19,11 @@ param deployAppService bool
 @description('')
 param location string = resourceGroup().location
 
-// @description('')
-// param customDomainNameAPI string
-
 @description('')
 param keyVaultName string
 
 @description('')
 param keyVaultResourceGroup string
-
-// @description('')
-// param kayVaultCertificateURI string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
@@ -232,21 +226,6 @@ resource nsgRuleAPIManagement 'Microsoft.Network/networkSecurityGroups/securityR
   }
 }
 
-// resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-//   name: 'SecureClientCommunicationToAPIManagementInbound'
-//   parent: nsgAPIMgmt
-//   properties: {
-//     protocol: 'Tcp'
-//     sourcePortRange: '*'
-//     destinationPortRange: '443'
-//     sourceAddressPrefix: ('Internet')
-//     destinationAddressPrefix: 'VirtualNetwork'
-//     access: 'Allow'
-//     priority: 210
-//     direction: 'Inbound'
-//   }
-// }
-
 resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
   name: '${baseName}-api-mgmt'
   location: location
@@ -260,21 +239,6 @@ resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01'
     }
   }
 }
-
-// resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
-//   name: '${baseName}-api-mgmt'
-//   location: location
-// }
-
-// module kvRoleAssignment './bicep-modules/vault-access.bicep' = {
-//   name: 'vault-access'
-//   scope: resourceGroup(keyVaultResourceGroup)
-//   params: {
-//     managedIdentityId: managedIdentity.properties.principalId
-//     namestring: baseName
-//     keyVaultName: keyVaultName
-//   }
-// }
 
 resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   name: '${baseName}-api'
@@ -290,22 +254,8 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     virtualNetworkConfiguration: {
       subnetResourceId: '${virtualNetwork.id}/subnets/api-management'
     }
-    // hostnameConfigurations: [
-    //   {
-    //     type: 'Proxy'
-    //     hostName: customDomainNameAPI
-    //     keyVaultId: kayVaultCertificateURI
-    //     identityClientId: managedIdentity.properties.clientId
-    //   }
-    // ]
     publicIpAddressId: publicIPAddressAPIMgmt.id
   }
-  // identity: {
-  //   type: 'UserAssigned'
-  //   userAssignedIdentities: {
-  //     '${managedIdentity.id}': {}
-  //   }
-  // }
   identity: {
     type: 'SystemAssigned'
   }
@@ -354,37 +304,6 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
 // ------------------------------------
 // - Start Application Gateway Deployment
 // ------------------------------------
-// resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-//   name: 'appgw-in-internet'
-//   parent: nsgAppGateway
-//   properties: {
-//     protocol: 'Tcp'
-//     sourcePortRange: '*'
-//     destinationPortRange: '443'
-//     sourceAddressPrefix: 'Internet'
-//     destinationAddressPrefix: '*'
-//     access: 'Allow'
-//     priority: 110
-//     direction: 'Inbound'
-//   }
-// }
-
-// TODO - remove once Front Door has been added?
-// resource nsgRuleAPPGatewayIngressPublic80 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-//   name: 'appgw-in-internet-80'
-//   parent: nsgAppGateway
-//   properties: {
-//     protocol: 'Tcp'
-//     sourcePortRange: '*'
-//     destinationPortRange: '80'
-//     sourceAddressPrefix: 'Internet'
-//     destinationAddressPrefix: '*'
-//     access: 'Allow'
-//     priority: 200
-//     direction: 'Inbound'
-//   }
-// }
-
 resource nsgRuleAPPGatewayIngress'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
   name: 'appgw-in-FrontDoor'
   parent: nsgAppGateway
@@ -694,35 +613,5 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-p
 //     }
 //     isCurrent: true
 //     path: webApplication.properties.defaultHostName
-//   }
-// }
-
-// Put back in at some point
-
-// resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-//   name: '${name}-01'
-//   location: location
-//   properties: {
-//     enabledForDeployment: false
-//     enabledForTemplateDeployment: false
-//     enabledForDiskEncryption: false
-//     tenantId: subscription().tenantId
-//     publicNetworkAccess: 'Disabled'
-//     accessPolicies: [
-//       {
-//         objectId: apiManagementInstance.identity.principalId
-//         permissions: {
-//           secrets: [
-//             'get'
-//             'list'
-//           ]
-//         }
-//         tenantId: subscription().tenantId
-//       }
-//     ]
-//     sku: {
-//       name: 'standard'
-//       family: 'A'
-//     }
 //   }
 // }
