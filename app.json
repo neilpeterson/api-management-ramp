@@ -4,43 +4,12 @@
   "parameters": {
 
     "baseName": {
-      "value": "sun-full-003"
+      "value": "tue-full-1005"
     },
 
     "deployAppService": {
       "value": true
     },
-
-    "virtualMachine": {
-      "value": {
-        "deploy": false,
-        "adminUserName": "fitadmin"
-      }
-    },
-
-    "bastionHost": {
-      "value": {
-        "name": "AzureBastionHost",
-        "publicIPAddressName": "pip-bastion",
-        "subnetName": "AzureBastionSubnet",
-        "nsgName": "nsg-hub-bastion",
-        "subnetPrefix": "10.0.4.0/29"
-      }
-    },
-
-    "adminPassword": {
-      "reference": {
-        "keyVault": {
-          "id": "/subscriptions/7dba16b0-223a-47ee-961c-35f04590c547/resourceGroups/apim-domain-cert/providers/Microsoft.KeyVault/vaults/apim-domain-cert-001"
-        },
-        "secretName": "adminPassword"
-      }
-    },
-
-    "customDomainNameAPI": {
-      "value": "api.nepeters-api.com"
-    },
-
 
     "appGatewayTrustedRootCert": {
       "reference": {
@@ -49,10 +18,6 @@
         },
         "secretName": "appGatewayTrustedRootCert"
       }
-    },
-
-    "kayVaultCertificateURI": {
-      "value": "https://apim-domain-cert-001.vault.azure.net/secrets/nepeters-api"
     },
 
     "keyVaultName": {

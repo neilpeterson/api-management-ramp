@@ -1,9 +1,13 @@
+// - APIM Custom Domain Issue
+// https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall
+// https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault
+
+// TODO - integrate with OneCert for SSL certificate
+// TODO - Front door HTTPS
+// TODO - Diagnostic configurations
+
 @description('')
 param baseName string
-
-@secure()
-@description('')
-param adminPassword string
 
 @secure()
 @description('')
@@ -13,16 +17,10 @@ param appGatewayTrustedRootCert string
 param deployAppService bool
 
 @description('')
-param virtualMachine object
-
-@description('')
-param bastionHost object
-
-@description('')
 param location string = resourceGroup().location
 
-@description('')
-param customDomainNameAPI string
+// @description('')
+// param customDomainNameAPI string
 
 @description('')
 param keyVaultName string
@@ -30,8 +28,8 @@ param keyVaultName string
 @description('')
 param keyVaultResourceGroup string
 
-@description('')
-param kayVaultCertificateURI string
+// @description('')
+// param kayVaultCertificateURI string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
@@ -73,24 +71,6 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
           }
         }
       }
-      {
-        name: 'virtual-machine'
-        properties: {
-          addressPrefix: '10.0.3.0/24'
-          networkSecurityGroup: {
-            id: nsgVirtualMachines.id
-          }
-        }
-      }
-      {
-        name: 'AzureBastionSubnet'
-        properties: {
-          addressPrefix: '10.0.4.0/29'
-          networkSecurityGroup: {
-            id: nsgBastion.id
-          }
-        }
-      }
     ]
   }
 }
@@ -128,259 +108,6 @@ resource nsgAppService 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
   name: 'app-service'
   location: location
   properties: {}
-}
-
-resource nsgBastion 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
-  name: 'nsgbastion'
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'bastion-in-allow'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: 'Internet'
-          destinationPortRange: '443'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 100
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'bastion-control-in-allow'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: 'GatewayManager'
-          destinationPortRange: '443'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 120
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'bastion-in-host'
-        properties: {
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRanges: [
-            '8080'
-            '5701'
-          ]
-          sourceAddressPrefix: 'VirtualNetwork'
-          destinationAddressPrefix: 'VirtualNetwork'
-          access: 'Allow'
-          priority: 130
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'bastion-vnet-out-allow'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: '*'
-          destinationPortRanges: [
-            '22'
-            '3389'
-          ]
-          destinationAddressPrefix: 'VirtualNetwork'
-          access: 'Allow'
-          priority: 100
-          direction: 'Outbound'
-        }
-      }
-      {
-        name: 'bastion-azure-out-allow'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: '*'
-          destinationPortRange: '443'
-          destinationAddressPrefix: 'AzureCloud'
-          access: 'Allow'
-          priority: 120
-          direction: 'Outbound'
-        }
-      }
-      {
-        name: 'bastion-out-host'
-        properties: {
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRanges: [
-            '8080'
-            '5701'
-          ]
-          sourceAddressPrefix: 'VirtualNetwork'
-          destinationAddressPrefix: 'VirtualNetwork'
-          access: 'Allow'
-          priority: 130
-          direction: 'Outbound'
-        }
-      }
-      {
-        name: 'bastion-out-deny'
-        properties: {
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRange: '*'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: '*'
-          access: 'Deny'
-          priority: 1000
-          direction: 'Outbound'
-        }
-      }
-    ]
-  }
-}
-
-resource nsgVirtualMachines 'Microsoft.Network/networkSecurityGroups@2020-08-01' = {
-  name: 'nsgVirtualMachines'
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'bastion-in-vnet'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: bastionHost.subnetPrefix
-          destinationPortRanges: [
-            '22'
-            '3389'
-          ]
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 100
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'DenyAllInBound'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          sourceAddressPrefix: '*'
-          destinationPortRange: '443'
-          destinationAddressPrefix: '*'
-          access: 'Deny'
-          priority: 1000
-          direction: 'Inbound'
-        }
-      }
-    ]
-  }
-}
-
-// ------------------------------------
-// - Start Virtual Machine Deployment - remove at some point
-// - This is used for troubleshooting within the VNET
-// - Bastion, VM, PIP, NIC, and extensions are conditionally deployed
-// - Subnet and NSG are always deployed due to this issue - https://github.com/Azure/bicep/issues/4653
-// ------------------------------------
-resource bastion 'Microsoft.Network/bastionHosts@2020-06-01' = if (virtualMachine.deploy) {
-  name: bastionHost.name
-  location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconf'
-        properties: {
-          subnet: {
-            id: '${virtualNetwork.id}/subnets/${bastionHost.subnetName}'
-          }
-          publicIPAddress: {
-            id: pipBastion.id
-          }
-        }
-      }
-    ]
-  }
-}
-
-resource pipBastion 'Microsoft.Network/publicIPAddresses@2020-06-01' = if (virtualMachine.deploy) {
-  name: bastionHost.name
-  location: location
-  sku: {
-    name: 'Standard'
-  }
-  properties: {
-    publicIPAllocationMethod: 'Static'
-  }
-}
-
-resource nicVirtualMachine 'Microsoft.Network/networkInterfaces@2021-05-01' = if (virtualMachine.deploy) {
-  name: '${baseName}-vm'
-  location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig'
-        properties: {
-          privateIPAllocationMethod: 'Dynamic'
-          subnet: {
-            id: '${virtualNetwork.id}/subnets/virtual-machine'
-          }
-        }
-      }
-    ]
-  }
-}
-
-resource ubuntuVM 'Microsoft.Compute/virtualMachines@2020-12-01' = if (virtualMachine.deploy) {
-  name: baseName
-  location: location
-  properties: {
-    hardwareProfile: {
-      vmSize: 'Standard_A2_v2'
-    }
-    osProfile: {
-      computerName: baseName
-      adminUsername: virtualMachine.adminUserName
-      adminPassword: adminPassword
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'Canonical'
-        offer: 'UbuntuServer'
-        sku: '16.04-LTS'
-        version: 'latest'
-      }
-      osDisk: {
-        name: baseName
-        caching: 'ReadWrite'
-        createOption: 'FromImage'
-      }
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: nicVirtualMachine.id
-        }
-      ]
-    }
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-}
-
-resource linuxVMGuestConfigExtension 'Microsoft.Compute/virtualMachines/extensions@2020-12-01' = if (virtualMachine.deploy) {
-  name: 'AzurePolicyforLinux'
-  parent: ubuntuVM
-  location: location
-  properties: {
-    publisher: 'Microsoft.GuestConfiguration'
-    type: 'ConfigurationForLinux'
-    typeHandlerVersion: '1.0'
-    autoUpgradeMinorVersion: true
-    enableAutomaticUpgrade: true
-  }
 }
 
 // ------------------------------------
@@ -505,20 +232,20 @@ resource nsgRuleAPIManagement 'Microsoft.Network/networkSecurityGroups/securityR
   }
 }
 
-resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'SecureClientCommunicationToAPIManagementInbound'
-  parent: nsgAPIMgmt
-  properties: {
-    protocol: 'Tcp'
-    sourcePortRange: '*'
-    destinationPortRange: '443'
-    sourceAddressPrefix: ('Internet')
-    destinationAddressPrefix: 'VirtualNetwork'
-    access: 'Allow'
-    priority: 210
-    direction: 'Inbound'
-  }
-}
+// resource nsgRuleAPIClient 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+//   name: 'SecureClientCommunicationToAPIManagementInbound'
+//   parent: nsgAPIMgmt
+//   properties: {
+//     protocol: 'Tcp'
+//     sourcePortRange: '*'
+//     destinationPortRange: '443'
+//     sourceAddressPrefix: ('Internet')
+//     destinationAddressPrefix: 'VirtualNetwork'
+//     access: 'Allow'
+//     priority: 210
+//     direction: 'Inbound'
+//   }
+// }
 
 resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
   name: '${baseName}-api-mgmt'
@@ -534,20 +261,20 @@ resource publicIPAddressAPIMgmt 'Microsoft.Network/publicIPAddresses@2019-11-01'
   }
 }
 
-resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
-  name: '${baseName}-api-mgmt'
-  location: location
-}
+// resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+//   name: '${baseName}-api-mgmt'
+//   location: location
+// }
 
-module kvRoleAssignment './bicep-modules/vault-access.bicep' = {
-  name: 'vault-access'
-  scope: resourceGroup(keyVaultResourceGroup)
-  params: {
-    managedIdentityId: managedIdentity.properties.principalId
-    namestring: baseName
-    keyVaultName: keyVaultName
-  }
-}
+// module kvRoleAssignment './bicep-modules/vault-access.bicep' = {
+//   name: 'vault-access'
+//   scope: resourceGroup(keyVaultResourceGroup)
+//   params: {
+//     managedIdentityId: managedIdentity.properties.principalId
+//     namestring: baseName
+//     keyVaultName: keyVaultName
+//   }
+// }
 
 resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   name: '${baseName}-api'
@@ -563,21 +290,34 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
     virtualNetworkConfiguration: {
       subnetResourceId: '${virtualNetwork.id}/subnets/api-management'
     }
-    hostnameConfigurations: [
-      {
-        type: 'Proxy'
-        hostName: customDomainNameAPI
-        keyVaultId: kayVaultCertificateURI
-        identityClientId: managedIdentity.properties.clientId
-      }
-    ]
+    // hostnameConfigurations: [
+    //   {
+    //     type: 'Proxy'
+    //     hostName: customDomainNameAPI
+    //     keyVaultId: kayVaultCertificateURI
+    //     identityClientId: managedIdentity.properties.clientId
+    //   }
+    // ]
     publicIpAddressId: publicIPAddressAPIMgmt.id
   }
+  // identity: {
+  //   type: 'UserAssigned'
+  //   userAssignedIdentities: {
+  //     '${managedIdentity.id}': {}
+  //   }
+  // }
   identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${managedIdentity.id}': {}
-    }
+    type: 'SystemAssigned'
+  }
+}
+
+module kvRoleAssignmentSA './bicep-modules/vault-access.bicep' = {
+  name: 'vault-access'
+  scope: resourceGroup(keyVaultResourceGroup)
+  params: {
+    managedIdentityId: apiManagementInstance.identity.principalId
+    namestring: baseName
+    keyVaultName: keyVaultName
   }
 }
 
@@ -614,31 +354,46 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
 // ------------------------------------
 // - Start Application Gateway Deployment
 // ------------------------------------
-resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'appgw-in-internet'
-  parent: nsgAppGateway
-  properties: {
-    protocol: 'Tcp'
-    sourcePortRange: '*'
-    destinationPortRange: '443'
-    sourceAddressPrefix: 'Internet'
-    destinationAddressPrefix: '*'
-    access: 'Allow'
-    priority: 110
-    direction: 'Inbound'
-  }
-}
+// resource nsgRuleAPPGatewayIngressPublic 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+//   name: 'appgw-in-internet'
+//   parent: nsgAppGateway
+//   properties: {
+//     protocol: 'Tcp'
+//     sourcePortRange: '*'
+//     destinationPortRange: '443'
+//     sourceAddressPrefix: 'Internet'
+//     destinationAddressPrefix: '*'
+//     access: 'Allow'
+//     priority: 110
+//     direction: 'Inbound'
+//   }
+// }
 
 // TODO - remove once Front Door has been added?
-resource nsgRuleAPPGatewayIngressPublic80 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
-  name: 'appgw-in-internet-80'
+// resource nsgRuleAPPGatewayIngressPublic80 'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+//   name: 'appgw-in-internet-80'
+//   parent: nsgAppGateway
+//   properties: {
+//     protocol: 'Tcp'
+//     sourcePortRange: '*'
+//     destinationPortRange: '80'
+//     sourceAddressPrefix: 'Internet'
+//     destinationAddressPrefix: '*'
+//     access: 'Allow'
+//     priority: 200
+//     direction: 'Inbound'
+//   }
+// }
+
+resource nsgRuleAPPGatewayIngress'Microsoft.Network/networkSecurityGroups/securityRules@2019-11-01' = {
+  name: 'appgw-in-FrontDoor'
   parent: nsgAppGateway
   properties: {
     protocol: 'Tcp'
     sourcePortRange: '*'
-    destinationPortRange: '80'
-    sourceAddressPrefix: 'Internet'
-    destinationAddressPrefix: '*'
+    destinationPortRange: '443,80'
+    sourceAddressPrefix: 'AzureFrontDoor.Backend'
+    destinationAddressPrefix: 'VirtualNetwork'
     access: 'Allow'
     priority: 200
     direction: 'Inbound'
@@ -824,104 +579,75 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
 }
 
 // ------------------------------------
-// - Start Front Door Deployment
+// - Start Front Door Premium Deployment
 // ------------------------------------
-resource frontDoor 'Microsoft.Network/frontdoors@2021-06-01' = {
+resource frontDoor 'Microsoft.Cdn/profiles@2022-11-01-preview' = {
   name: baseName
   location: 'Global'
-  properties: {
-    routingRules: [
-      {
-        name: 'rule'
-        properties: {
-          routeConfiguration: {
-            '@odata.type': '#Microsoft.Azure.FrontDoor.Models.FrontdoorForwardingConfiguration'
-            forwardingProtocol: 'HttpOnly'
-            backendPool: {
-              id: resourceId('Microsoft.Network/frontdoors/BackendPools/', baseName, baseName)
-            }
-          }
-          frontendEndpoints: [
-            {
-              id: resourceId('Microsoft.Network/frontdoors/FrontendEndpoints/', baseName, baseName)
-            }
-          ]
-          acceptedProtocols: [
-            'Http'
-            'Https'
-          ]
-          patternsToMatch: [
-            '/*'
-          ]
-          enabledState: 'Enabled'
-        }
-      }
-    ]
-    loadBalancingSettings: [
-      {
-        name: baseName
-        properties: {
-          sampleSize: 4
-          successfulSamplesRequired: 2
-          additionalLatencyMilliseconds: 0
-        }
-      }
-    ]
-    healthProbeSettings: [
-      {
-        name: baseName
-        properties: {
-          path: '/'
-          protocol: 'Http'
-          intervalInSeconds: 30
-          enabledState: 'Enabled'
-          healthProbeMethod: 'Head'
-        }
-      }
-    ]
-    backendPools: [
-      {
-        name: baseName
-        properties: {
-          backends: [
-            {
-              address: publicIPAddressAPPGateway.properties.ipAddress
-              httpPort: 80
-              httpsPort: 443
-              priority: 1
-              weight: 50
-              backendHostHeader: publicIPAddressAPPGateway.properties.ipAddress
-              enabledState: 'Enabled'
-            }
-          ]
-          loadBalancingSettings: {
-            id: resourceId('Microsoft.Network/frontdoors/LoadBalancingSettings/', baseName, baseName)
-          }
-          healthProbeSettings: {
-            id: resourceId('Microsoft.Network/frontdoors/HealthProbeSettings/', baseName, baseName)
-          }
-        }
-      }
-    ]
-    frontendEndpoints: [
-      {
-        name: baseName
-        properties: {
-          hostName: '${baseName}.azurefd.net'
-          sessionAffinityEnabledState: 'Disabled'
-          sessionAffinityTtlSeconds: 0
-        }
-      }
-    ]
-    backendPoolsSettings: {
-      enforceCertificateNameCheck: 'Enabled'
-      sendRecvTimeoutSeconds: 30
-    }
-    enabledState: 'Enabled'
-    friendlyName: baseName
+  sku: {
+    name: 'Premium_AzureFrontDoor'
   }
 }
 
+resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdendpoints@2022-11-01-preview' = {
+  parent: frontDoor
+  name: baseName
+  location: 'Global'
+  properties: {
+    enabledState: 'Enabled'
+  }
+}
+
+resource frontDoorOriginGroup 'Microsoft.Cdn/profiles/origingroups@2022-11-01-preview' = {
+  parent: frontDoor
+  name: 'default-origin-group'
+  properties: {
+    loadBalancingSettings: {
+      sampleSize: 4
+      successfulSamplesRequired: 3
+      additionalLatencyInMilliseconds: 50
+    }
+    sessionAffinityState: 'Disabled'
+  }
+}
+
+resource frontDoorOrigin 'Microsoft.Cdn/profiles/origingroups/origins@2022-11-01-preview' = {
+  parent: frontDoorOriginGroup
+  name: 'default-origin'
+  properties: {
+    hostName: publicIPAddressAPPGateway.properties.ipAddress
+    httpPort: 80
+    httpsPort: 443
+    originHostHeader: publicIPAddressAPPGateway.properties.ipAddress
+    priority: 1
+    weight: 1000
+    enabledState: 'Enabled'
+    enforceCertificateNameCheck: false
+  }
+}
+
+resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-preview' = {
+  parent: frontDoorEndpoint
+  name: 'default-route'
+  properties: {
+    customDomains: []
+    originGroup: {
+      id: frontDoorOriginGroup.id
+    }
+    ruleSets: []
+    supportedProtocols: [
+      'Http'
+      'Https'
+    ]
+    patternsToMatch: [
+      '/'
+    ]
+    forwardingProtocol: 'HttpOnly'
+    linkToDefaultDomain: 'Enabled'
+    httpsRedirect: 'Disabled'
+    enabledState: 'Enabled'
+  }
+}
 
 // resource APIManagementPortalSettings 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
 //   name: 'delegation'
