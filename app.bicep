@@ -24,6 +24,11 @@ param keyVaultName string
 @description('')
 param keyVaultResourceGroup string
 
+resource logAnalyticsWorkpace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: baseName
+  location: location
+}
+
 resource ddosProtectionPlan 'Microsoft.Network/ddosProtectionPlans@2022-11-01' = {
   name: baseName
   location: location
