@@ -549,6 +549,32 @@ resource frontDoor 'Microsoft.Cdn/profiles@2022-11-01-preview' = {
   }
 }
 
+resource frontDoorLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: frontDoor.name
+  scope: frontDoor
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'allLogs'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'audit'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+    ]
+  }
+}
+
 resource frontDoorEndpoint 'Microsoft.Cdn/profiles/afdendpoints@2022-11-01-preview' = {
   parent: frontDoor
   name: baseName

@@ -27,13 +27,7 @@ Update the app.json file with the follling things.
 | `keyVaultName` | The name of the Key Vault created in the pre-requisites. |
 | `keyVaultResourceGroup` | The name of the resource group where the Key Vault was created. |
 
-```
-
-```
-
 ## Post deployment steps
-
-Due to a known issue, the custom domain must be manually configured. The issue is documented [here](https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall) and [here](https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault). There are things we could do to work around so that this is configured at deployment time (deployment script), I may revisit at some point.
 
 ### Manually configure custom domain
 
@@ -43,7 +37,7 @@ Due to a known issue, the custom domain must be manually configured. The issue i
 
 ![](/images/backend-health.png)
 
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' http://thur-full-006-app-gateway.eastus.cloudapp.azure.com/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://ci-lab-full-005-fve8ascudcdte9ds.z01.azurefd.net/sum
 
 ## Apendex 1 - API local build
 
