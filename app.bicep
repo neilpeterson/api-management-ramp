@@ -9,9 +9,8 @@
 @description('')
 param baseName string
 
-@secure()
 @description('')
-param appGatewayTrustedRootCert string
+param customDomainNameAPIM string
 
 @description('')
 param deployAppService bool
@@ -272,7 +271,7 @@ module kvRoleAssignmentSA './bicep-modules/vault-access.bicep' = {
 }
 
 resource privateDnsZonesAPI 'Microsoft.Network/privateDnsZones@2018-09-01' = {
-  name: 'nepeters-api.com'
+  name: customDomainNameAPIM
   location: 'global'
 }
 
@@ -384,7 +383,7 @@ resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApp
       maxRequestBodySizeInKb: 128
       fileUploadLimitInMb: 100
       state: 'Enabled'
-      mode: 'Detection'
+      mode: 'Prevention'
       requestBodyInspectLimitInKB: 128
       fileUploadEnforcement: true
       requestBodyEnforcement: true
@@ -417,14 +416,6 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
           subnet: {
             id: '${virtualNetwork.id}/subnets/app-gateway'
           }
-        }
-      }
-    ]
-    trustedRootCertificates: [
-      {
-        name: 'apim-trusted-root-cert'
-        properties: {
-          data: appGatewayTrustedRootCert
         }
       }
     ]
@@ -466,17 +457,12 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
           port: 443
           protocol: 'Https'
           cookieBasedAffinity: 'Disabled'
-          hostName: 'api.nepeters-api.com'
+          hostName: customDomainNameAPIM
           pickHostNameFromBackendAddress: false
           requestTimeout: 20
           probe: {
             id: resourceId('Microsoft.Network/applicationGateways/probes', baseName, 'apim-gateway-probe')
           }
-          trustedRootCertificates: [
-            {
-              id: resourceId('Microsoft.Network/applicationGateways/trustedRootCertificates', baseName, 'apim-trusted-root-cert')
-            }
-          ]
         }
       }
     ]
@@ -606,6 +592,61 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-p
     linkToDefaultDomain: 'Enabled'
     httpsRedirect: 'Disabled'
     enabledState: 'Enabled'
+  }
+}
+
+resource wafPolicyFrontDoor 'Microsoft.Network/frontdoorwebapplicationfirewallpolicies@2022-05-01' = {
+  name: baseName
+  location: 'Global'
+  sku: {
+    name: 'Premium_AzureFrontDoor'
+  }
+  properties: {
+    policySettings: {
+      enabledState: 'Enabled'
+      mode: 'Prevention'
+      requestBodyCheck: 'Enabled'
+    }
+    customRules: {
+      rules: []
+    }
+    managedRules: {
+      managedRuleSets: [
+        {
+          ruleSetType: 'Microsoft_DefaultRuleSet'
+          ruleSetVersion: '2.0'
+          ruleSetAction: 'Block'
+          ruleGroupOverrides: []
+          exclusions: []
+        }
+      ]
+    }
+  }
+}
+
+resource profiles_pef_apim_lab_cert_name_test_waf 'Microsoft.Cdn/profiles/securitypolicies@2022-11-01-preview' = {
+  parent: frontDoor
+  name: 'test-waf'
+  properties: {
+    parameters: {
+      wafPolicy: {
+        id: wafPolicyFrontDoor.id
+      }
+      associations: [
+        {
+          domains: [
+            {
+              // doubt on this....
+              id: frontDoor.id
+            }
+          ]
+          patternsToMatch: [
+            '/*'
+          ]
+        }
+      ]
+      type: 'WebApplicationFirewall'
+    }
   }
 }
 

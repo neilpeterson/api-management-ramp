@@ -4,28 +4,23 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-lab-full-001z"
+      "value": "ci-lab-full-002"
+    },
+
+    "customDomainNameAPIM": {
+      "value": "pef-apim-lab.supplychain.microsoft.com"
     },
 
     "deployAppService": {
       "value": true
     },
 
-    "appGatewayTrustedRootCert": {
-      "reference": {
-        "keyVault": {
-          "id": "/subscriptions/7d87d11e-2aaa-4d69-85bf-a1c11503f96d/resourceGroups/ci-lab-full-001/providers/Microsoft.KeyVault/vaults/ci-lab-full-001"
-        },
-        "secretName": "appGatewayTrustedRootCert"
-      }
-    },
-
     "keyVaultName": {
-      "value": "ci-lab-full-001"
+      "value": "pef-apim-lab-cert"
     },
 
     "keyVaultResourceGroup": {
-      "value": "ci-lab-full-001"
+      "value": "pef-apim-lab-cert"
     }
 
   }
