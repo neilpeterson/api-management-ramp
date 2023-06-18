@@ -301,6 +301,46 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
   }
 }
 
+resource apimPortalSignup 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
+  parent: apiManagementInstance
+  name: 'signup'
+  properties: {
+    enabled: false
+    termsOfService: {
+      enabled: false
+      consentRequired: false
+    }
+  }
+}
+
+resource apimPortalDefault 'Microsoft.ApiManagement/service/portalconfigs@2022-09-01-preview' = {
+  parent: apiManagementInstance
+  name: 'default'
+  properties: {
+    enableBasicAuth: false
+    signin: {
+      require: false
+    }
+    signup: {
+      termsOfService: {
+        requireConsent: false
+      }
+    }
+    delegation: {
+      delegateRegistration: false
+      delegateSubscription: false
+    }
+    cors: {
+      allowedOrigins: []
+    }
+    csp: {
+      mode: 'disabled'
+      reportUri: []
+      allowedSources: []
+    }
+  }
+}
+
 // ------------------------------------
 // - Start Application Gateway Deployment
 // ------------------------------------

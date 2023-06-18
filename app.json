@@ -4,7 +4,7 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-lab-full-001"
+      "value": "ci-lab-full-001z"
     },
 
     "deployAppService": {
