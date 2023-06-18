@@ -2,8 +2,8 @@
 // https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall
 // https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault
 
-// TODO - integrate with OneCert for SSL certificate
-// TODO - Front door HTTPS
+// TODO - clean up and other generalizations
+// TODO - Front door custom
 // TODO - Diagnostic configurations
 
 @description('')
@@ -23,6 +23,11 @@ param keyVaultName string
 
 @description('')
 param keyVaultResourceGroup string
+
+resource ddosProtectionPlan 'Microsoft.Network/ddosProtectionPlans@2022-11-01' = {
+  name: baseName
+  location: location
+}
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
@@ -65,6 +70,10 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
         }
       }
     ]
+    enableDdosProtection: true
+    ddosProtectionPlan: {
+      id: ddosProtectionPlan.id
+    }
   }
 }
 
@@ -143,7 +152,7 @@ resource webApplication 'Microsoft.Web/sites@2021-01-15' = if (deployAppService)
   }
 }
 
-resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = if (deployAppService)  {
+resource srcControl 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = if (deployAppService)  {
   name: 'web'
   parent: webApplication
   properties: {
@@ -373,7 +382,7 @@ resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-
   }
 }
 
-resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2022-11-01' = {
+resource applicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2022-11-01' = {
   name: baseName
   location: location
   properties: {
@@ -519,7 +528,7 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
       maxCapacity: 10
     }
     firewallPolicy: {
-      id: ApplicationGatewayWAFPolicy.id
+      id: applicationGatewayWAFPolicy.id
     }
   }
 }
@@ -595,9 +604,9 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-p
   }
 }
 
-resource wafPolicyFrontDoor 'Microsoft.Network/frontdoorwebapplicationfirewallpolicies@2022-05-01' = {
-  name: baseName
-  location: 'Global'
+resource frontDoorWAFPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2020-11-01' = {
+  name: 'wafPolicy'
+  location: 'global'
   sku: {
     name: 'Premium_AzureFrontDoor'
   }
@@ -605,39 +614,26 @@ resource wafPolicyFrontDoor 'Microsoft.Network/frontdoorwebapplicationfirewallpo
     policySettings: {
       enabledState: 'Enabled'
       mode: 'Prevention'
-      requestBodyCheck: 'Enabled'
-    }
-    customRules: {
-      rules: []
     }
     managedRules: {
-      managedRuleSets: [
-        {
-          ruleSetType: 'Microsoft_DefaultRuleSet'
-          ruleSetVersion: '2.0'
-          ruleSetAction: 'Block'
-          ruleGroupOverrides: []
-          exclusions: []
-        }
-      ]
+      managedRuleSets: []
     }
   }
 }
 
-resource profiles_pef_apim_lab_cert_name_test_waf 'Microsoft.Cdn/profiles/securitypolicies@2022-11-01-preview' = {
+resource frontDoorSecurityPolicy 'Microsoft.Cdn/profiles/securitypolicies@2022-11-01-preview' = {
   parent: frontDoor
-  name: 'test-waf'
+  name: 'testwaf'
   properties: {
     parameters: {
       wafPolicy: {
-        id: wafPolicyFrontDoor.id
+        id: frontDoorWAFPolicy.id
       }
       associations: [
         {
           domains: [
             {
-              // doubt on this....
-              id: frontDoor.id
+              id: frontDoorEndpoint.id
             }
           ]
           patternsToMatch: [
@@ -649,52 +645,3 @@ resource profiles_pef_apim_lab_cert_name_test_waf 'Microsoft.Cdn/profiles/securi
     }
   }
 }
-
-// resource APIManagementPortalSettings 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
-//   name: 'delegation'
-//   parent: apiManagementInstance
-//   properties: {
-//     subscriptions: {
-//       enabled: false
-//     }
-//     userRegistration: {
-//       enabled: false
-//     }
-//   }
-// }
-
-
-// resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
-//   parent: apiManagementInstance
-//   name: baseName
-//   properties: {
-//     description: baseName
-//     url: 'https://${webApplication.properties.defaultHostName}'
-//     protocol: 'http'
-//     resourceId: 'https://${webApplication.id}'
-//   }
-// }
-
-// resource apiSum 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
-//   parent: apiManagementInstance
-//   name: name
-//   properties: {
-//     displayName: 'api-mgmt-ramp-001'
-//     apiRevision: '1'
-//     subscriptionRequired: false
-//     protocols: [
-//       'https'
-//     ]
-//     authenticationSettings: {
-//       oAuth2AuthenticationSettings: []
-//       openidAuthenticationSettings: []
-//     }
-//     subscriptionKeyParameterNames: {
-//       header: 'Ocp-Apim-Subscription-Key'
-//       query: 'subscription-key'
-//     }
-//     isCurrent: true
-//     path: webApplication.properties.defaultHostName
-//   }
-// }
-

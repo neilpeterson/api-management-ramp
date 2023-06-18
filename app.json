@@ -4,7 +4,7 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-lab-full-002"
+      "value": "ci-lab-full-005"
     },
 
     "customDomainNameAPIM": {
