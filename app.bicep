@@ -2,16 +2,14 @@
 // https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall
 // https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault
 
-// TODO - integrate with OneCert for SSL certificate
-// TODO - Front door HTTPS
-// TODO - Diagnostic configurations
+// TODO - clean up and other generalizations
+// TODO - Front door custom domain
 
 @description('')
 param baseName string
 
-@secure()
 @description('')
-param appGatewayTrustedRootCert string
+param customDomainNameAPIM string
 
 @description('')
 param deployAppService bool
@@ -24,6 +22,16 @@ param keyVaultName string
 
 @description('')
 param keyVaultResourceGroup string
+
+resource logAnalyticsWorkpace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: baseName
+  location: location
+}
+
+resource ddosProtectionPlan 'Microsoft.Network/ddosProtectionPlans@2022-11-01' = {
+  name: baseName
+  location: location
+}
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
   name: baseName
@@ -66,6 +74,10 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' = {
         }
       }
     ]
+    enableDdosProtection: true
+    ddosProtectionPlan: {
+      id: ddosProtectionPlan.id
+    }
   }
 }
 
@@ -144,7 +156,7 @@ resource webApplication 'Microsoft.Web/sites@2021-01-15' = if (deployAppService)
   }
 }
 
-resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = if (deployAppService)  {
+resource srcControl 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = if (deployAppService)  {
   name: 'web'
   parent: webApplication
   properties: {
@@ -245,7 +257,7 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   location: location
   sku:{
     capacity: 1
-    name: 'Developer'
+    name: 'Premium'
   }
   properties:{
     virtualNetworkType: 'Internal'
@@ -261,6 +273,26 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   }
 }
 
+resource apiManagementDiagnostics 'microsoft.insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: apiManagementInstance
+  name: baseName
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'GatewayLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
 module kvRoleAssignmentSA './bicep-modules/vault-access.bicep' = {
   name: 'vault-access'
   scope: resourceGroup(keyVaultResourceGroup)
@@ -272,7 +304,7 @@ module kvRoleAssignmentSA './bicep-modules/vault-access.bicep' = {
 }
 
 resource privateDnsZonesAPI 'Microsoft.Network/privateDnsZones@2018-09-01' = {
-  name: 'nepeters-api.com'
+  name: customDomainNameAPIM
   location: 'global'
 }
 
@@ -298,6 +330,46 @@ resource privateDnsZonesAPIRecord 'Microsoft.Network/privateDnsZones/A@2018-09-0
         ipv4Address: apiManagementInstance.properties.privateIPAddresses[0]
       }
     ]
+  }
+}
+
+resource apimPortalSignup 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
+  parent: apiManagementInstance
+  name: 'signup'
+  properties: {
+    enabled: false
+    termsOfService: {
+      enabled: false
+      consentRequired: false
+    }
+  }
+}
+
+resource apimPortalDefault 'Microsoft.ApiManagement/service/portalconfigs@2022-09-01-preview' = {
+  parent: apiManagementInstance
+  name: 'default'
+  properties: {
+    enableBasicAuth: false
+    signin: {
+      require: false
+    }
+    signup: {
+      termsOfService: {
+        requireConsent: false
+      }
+    }
+    delegation: {
+      delegateRegistration: false
+      delegateSubscription: false
+    }
+    cors: {
+      allowedOrigins: []
+    }
+    csp: {
+      mode: 'disabled'
+      reportUri: []
+      allowedSources: []
+    }
   }
 }
 
@@ -334,7 +406,41 @@ resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-
   }
 }
 
-resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2022-11-01' = {
+resource appGatewayPIPLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: baseName
+  scope: publicIPAddressAPPGateway
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'ddosProtectionNotifications'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'ddosProtectionMetrics'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'ddosProtectionFlowLogs'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+    ]
+  }
+}
+
+resource applicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2022-11-01' = {
   name: baseName
   location: location
   properties: {
@@ -344,7 +450,7 @@ resource ApplicationGatewayWAFPolicy 'Microsoft.Network/ApplicationGatewayWebApp
       maxRequestBodySizeInKb: 128
       fileUploadLimitInMb: 100
       state: 'Enabled'
-      mode: 'Detection'
+      mode: 'Prevention'
       requestBodyInspectLimitInKB: 128
       fileUploadEnforcement: true
       requestBodyEnforcement: true
@@ -377,14 +483,6 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
           subnet: {
             id: '${virtualNetwork.id}/subnets/app-gateway'
           }
-        }
-      }
-    ]
-    trustedRootCertificates: [
-      {
-        name: 'apim-trusted-root-cert'
-        properties: {
-          data: appGatewayTrustedRootCert
         }
       }
     ]
@@ -426,17 +524,12 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
           port: 443
           protocol: 'Https'
           cookieBasedAffinity: 'Disabled'
-          hostName: 'api.nepeters-api.com'
+          hostName: customDomainNameAPIM
           pickHostNameFromBackendAddress: false
           requestTimeout: 20
           probe: {
             id: resourceId('Microsoft.Network/applicationGateways/probes', baseName, 'apim-gateway-probe')
           }
-          trustedRootCertificates: [
-            {
-              id: resourceId('Microsoft.Network/applicationGateways/trustedRootCertificates', baseName, 'apim-trusted-root-cert')
-            }
-          ]
         }
       }
     ]
@@ -493,8 +586,36 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
       maxCapacity: 10
     }
     firewallPolicy: {
-      id: ApplicationGatewayWAFPolicy.id
+      id: applicationGatewayWAFPolicy.id
     }
+  }
+}
+
+resource applicationGatewayDiagnostics 'microsoft.insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: applicationGateway
+  name: baseName
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'ApplicationGatewayAccessLog'
+        enabled: true
+      }
+      {
+        category: 'ApplicationGatewayPerformanceLog'
+        enabled: true
+      }
+      {
+        category: 'ApplicationGatewayFirewallLog'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }
 
@@ -506,6 +627,40 @@ resource frontDoor 'Microsoft.Cdn/profiles@2022-11-01-preview' = {
   location: 'Global'
   sku: {
     name: 'Premium_AzureFrontDoor'
+  }
+}
+
+resource frontDoorLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: frontDoor.name
+  scope: frontDoor
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'FrontDoorAccessLog'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'FrontDoorHealthProbeLog'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'FrontDoorWebApplicationFirewallLog'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+    ]
   }
 }
 
@@ -569,51 +724,44 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdendpoints/routes@2022-11-01-p
   }
 }
 
-// resource APIManagementPortalSettings 'Microsoft.ApiManagement/service/portalsettings@2022-09-01-preview' = {
-//   name: 'delegation'
-//   parent: apiManagementInstance
-//   properties: {
-//     subscriptions: {
-//       enabled: false
-//     }
-//     userRegistration: {
-//       enabled: false
-//     }
-//   }
-// }
+resource frontDoorWAFPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2020-11-01' = {
+  name: 'wafPolicy'
+  location: 'global'
+  sku: {
+    name: 'Premium_AzureFrontDoor'
+  }
+  properties: {
+    policySettings: {
+      enabledState: 'Enabled'
+      mode: 'Prevention'
+    }
+    managedRules: {
+      managedRuleSets: []
+    }
+  }
+}
 
-
-// resource apiSumBackend 'Microsoft.ApiManagement/service/backends@2022-08-01' = {
-//   parent: apiManagementInstance
-//   name: baseName
-//   properties: {
-//     description: baseName
-//     url: 'https://${webApplication.properties.defaultHostName}'
-//     protocol: 'http'
-//     resourceId: 'https://${webApplication.id}'
-//   }
-// }
-
-// resource apiSum 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
-//   parent: apiManagementInstance
-//   name: name
-//   properties: {
-//     displayName: 'api-mgmt-ramp-001'
-//     apiRevision: '1'
-//     subscriptionRequired: false
-//     protocols: [
-//       'https'
-//     ]
-//     authenticationSettings: {
-//       oAuth2AuthenticationSettings: []
-//       openidAuthenticationSettings: []
-//     }
-//     subscriptionKeyParameterNames: {
-//       header: 'Ocp-Apim-Subscription-Key'
-//       query: 'subscription-key'
-//     }
-//     isCurrent: true
-//     path: webApplication.properties.defaultHostName
-//   }
-// }
-
+resource frontDoorSecurityPolicy 'Microsoft.Cdn/profiles/securitypolicies@2022-11-01-preview' = {
+  parent: frontDoor
+  name: 'testwaf'
+  properties: {
+    parameters: {
+      wafPolicy: {
+        id: frontDoorWAFPolicy.id
+      }
+      associations: [
+        {
+          domains: [
+            {
+              id: frontDoorEndpoint.id
+            }
+          ]
+          patternsToMatch: [
+            '/*'
+          ]
+        }
+      ]
+      type: 'WebApplicationFirewall'
+    }
+  }
+}
