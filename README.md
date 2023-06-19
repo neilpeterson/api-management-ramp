@@ -1,12 +1,12 @@
-# Azure API Managemnt Ramp
+# Azure API Management Ramp
 
-Deploys Front Door > APP Gateway > API Managament > and conditionally an API running in a Pyton Flask Web App.
+Deploys Front Door > APP Gateway > API Management> and conditionally an API running in a Python Flask Web App.
 
 ![](/images/arch-diagram.png)
 
 ## Pre-requisites
 
-Before deploying the ARM template, create a Key Vault, Self Signed SSL Certificate, and upload these to the Key Vault.
+Before deploying the ARM template, create a Key Vault, and Self-Signed SSL Certificate, and upload these to the Key Vault.
 
 Create the Key Vault.
 
@@ -15,9 +15,9 @@ az group create --name ci-lab-full-001 --location eastus
 az deployment group create --template-file ./bicep-modules/key-vault.bicep --resource-group ci-lab-full-001 
 ```
 
-## Solution deployment
+## Solution Deployment
 
-Update the app.json file with the follling things.
+Update the app.json file with the following things.
 
 | Property | Description |
 | --- | --- |
@@ -27,17 +27,43 @@ Update the app.json file with the follling things.
 | `keyVaultName` | The name of the Key Vault created in the pre-requisites. |
 | `keyVaultResourceGroup` | The name of the resource group where the Key Vault was created. |
 
-## Post deployment steps
+## Post-deployment steps
 
-### Manually configure custom domain
+### Manually configure a custom domain
+
+Select the APIM instance and select Custom Domains. Add the custom domain name and the SSL certificate.
+
+![](/images/custom-domain.png)
+
+Once done, click save. This seems to put APIM into a non-functional state where 'Service is being updated'. This is something to understand better.
 
 ### Optionally Add API to API Management
 
+The Bicep templates include an optional API hosted in App Service. If deployed, add the API to APIM. Select the APIM instance, APIs, and then from the Add API menu, select App Service. Select the API and then create.
+
+![](/images/api.png)
+
+The sample API is not AAD integrated. For demo purposes only, uncheck the Require subscription check box.
+
+![](/images/api-subscription.png)
+
 ## Validate deployment
+
+Select the Application Gateway > Backend Health, and verify that the API is healthy.
 
 ![](/images/backend-health.png)
 
+Run the following command against the front door URL to verify that the API GET operation works.
+
+```
+curl https://ci-lab-full-005-fve8ascudcdte9ds.z01.azurefd.net
+```
+
+Run the following command against the front door URL to verify that the API POST operation works.
+
+```
 curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://ci-lab-full-005-fve8ascudcdte9ds.z01.azurefd.net/sum
+```
 
 ## Apendex 1 - API local build
 
