@@ -3,8 +3,7 @@
 // https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault
 
 // TODO - clean up and other generalizations
-// TODO - Front door custom
-// TODO - Diagnostic configurations
+// TODO - Front door custom domain
 
 @description('')
 param baseName string
@@ -258,7 +257,7 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   location: location
   sku:{
     capacity: 1
-    name: 'Developer'
+    name: 'Premium'
   }
   properties:{
     virtualNetworkType: 'Internal'
@@ -271,6 +270,26 @@ resource apiManagementInstance 'Microsoft.ApiManagement/service@2022-08-01' = {
   }
   identity: {
     type: 'SystemAssigned'
+  }
+}
+
+resource apiManagementDiagnostics 'microsoft.insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: apiManagementInstance
+  name: baseName
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'GatewayLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }
 
@@ -384,6 +403,40 @@ resource publicIPAddressAPPGateway 'Microsoft.Network/publicIPAddresses@2019-11-
     dnsSettings: {
       domainNameLabel: '${baseName}-app-gateway'
     }
+  }
+}
+
+resource appGatewayPIPLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: baseName
+  scope: publicIPAddressAPPGateway
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'ddosProtectionNotifications'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'ddosProtectionMetrics'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'ddosProtectionFlowLogs'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+    ]
   }
 }
 
@@ -538,6 +591,34 @@ resource applicationGateway 'Microsoft.Network/applicationGateways@2022-11-01' =
   }
 }
 
+resource applicationGatewayDiagnostics 'microsoft.insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: applicationGateway
+  name: baseName
+  properties: {
+    workspaceId: logAnalyticsWorkpace.id
+    logs: [
+      {
+        category: 'ApplicationGatewayAccessLog'
+        enabled: true
+      }
+      {
+        category: 'ApplicationGatewayPerformanceLog'
+        enabled: true
+      }
+      {
+        category: 'ApplicationGatewayFirewallLog'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
 // ------------------------------------
 // - Start Front Door Premium Deployment
 // ------------------------------------
@@ -556,7 +637,7 @@ resource frontDoorLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview
     workspaceId: logAnalyticsWorkpace.id
     logs: [
       {
-        category: 'allLogs'
+        category: 'FrontDoorAccessLog'
         enabled: true
         retentionPolicy: {
           days: 30
@@ -564,7 +645,15 @@ resource frontDoorLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview
         }
       }
       {
-        category: 'audit'
+        category: 'FrontDoorHealthProbeLog'
+        enabled: true
+        retentionPolicy: {
+          days: 30
+          enabled: true 
+        }
+      }
+      {
+        category: 'FrontDoorWebApplicationFirewallLog'
         enabled: true
         retentionPolicy: {
           days: 30

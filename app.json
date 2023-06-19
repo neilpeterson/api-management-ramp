@@ -4,11 +4,11 @@
   "parameters": {
 
     "baseName": {
-      "value": "ci-lab-full-005"
+      "value": "sun-lab-full-2001"
     },
 
     "customDomainNameAPIM": {
-      "value": "pef-apim-lab.supplychain.microsoft.com"
+      "value": "api.nepeters-api.com"
     },
 
     "deployAppService": {
@@ -16,11 +16,11 @@
     },
 
     "keyVaultName": {
-      "value": "pef-apim-lab-cert"
+      "value": "apim-domain-cert-001"
     },
 
     "keyVaultResourceGroup": {
-      "value": "pef-apim-lab-cert"
+      "value": "apim-domain-cert"
     }
 
   }
