@@ -2,9 +2,6 @@
 // https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-use-managed-service-identity#requirements-for-key-vault-firewall
 // https://stackoverflow.com/questions/68830195/azure-api-managment-user-assigned-identity-custom-domain-keyvault
 
-// TODO - clean up and other generalizations
-// TODO - Front door custom domain
-
 @description('')
 param baseName string
 
