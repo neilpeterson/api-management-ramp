@@ -413,7 +413,7 @@ resource appGatewayPIPLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
     workspaceId: logAnalyticsWorkpace.id
     logs: [
       {
-        category: 'ddosProtectionNotifications'
+        category: 'DDoSProtectionNotifications'
         enabled: true
         retentionPolicy: {
           days: 30
@@ -421,7 +421,7 @@ resource appGatewayPIPLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
         }
       }
       {
-        category: 'ddosProtectionMetrics'
+        category: 'DDoSMitigationFlowLogs'
         enabled: true
         retentionPolicy: {
           days: 30
@@ -429,7 +429,7 @@ resource appGatewayPIPLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
         }
       }
       {
-        category: 'ddosProtectionFlowLogs'
+        category: 'DDoSMitigationReports'
         enabled: true
         retentionPolicy: {
           days: 30
