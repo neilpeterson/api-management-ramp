@@ -23,7 +23,7 @@ Update the app.json file with the following things.
 | --- | --- |
 | `baseName` | The base name for the resources created. |
 | `deployAppService` | Set to `true` to deploy the API. |
-| `customDomainNameAPIM` | |
+| `customDomainNameAPIM` | Custom domain name for APIM, must match SSL certificate. |
 | `keyVaultName` | The name of the Key Vault created in the pre-requisites. |
 | `keyVaultResourceGroup` | The name of the resource group where the Key Vault was created. |
 
