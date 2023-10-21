@@ -11,7 +11,7 @@ def sum():
 
 @app.route("/")
 def hello():
-    return "Hello World - from westus..."
+    return "Hello World - from eastus..."
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -2,7 +2,7 @@
 param baseName string
 
 @description('')
-param location string = 'westus'
+param location string = 'eastus'
 
 // @description('')
 // param virtualNetworkName string = 'vnet-sce-api-gateway'
