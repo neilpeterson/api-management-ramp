@@ -62,7 +62,7 @@ curl https://pef-apim-lab-cke3gaa3ddhbfzee.z01.azurefd.net
 Run the following command against the front door URL to verify that the API POST operation works. This has stopped workign with latest deployment updates, need to investigate.
 
 ```
-curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://pef-apim-lab-cke3gaa3ddhbfzee.z01.azurefd.net/sum
+curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://common-api-gateway-001.azurefd.net/sum
 ```
 
 ## Apendex 1 - API local build

@@ -1,11 +1,11 @@
 @description('')
-param baseName string = 'pef-apim-api-sample'
+param baseName string
 
 @description('')
 param location string = resourceGroup().location
 
 @description('')
-param virtualNetworkName string = 'fd-prem-001'
+param virtualNetworkName string = 'vnet-sce-api-gateway'
 
 resource nsgAppService 'Microsoft.Network/networkSecurityGroups@2022-09-01' = {
   name: 'app-service'
@@ -21,7 +21,10 @@ resource appServiceSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-11-01'
   parent: apiVirtualNetwork
   name: 'app-service'
   properties: {
-    addressPrefix: '10.0.2.0/24'
+    addressPrefix: '10.1.2.16/28'
+    networkSecurityGroup: {
+      id: nsgAppService.id
+    }
   }
 }
 
@@ -123,4 +126,4 @@ resource privateEndpointDNS 'Microsoft.Network/privateEndpoints/privateDnsZoneGr
   }
 }
 
-//curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://fd-prem-001-hyg5cbg0c8hfgcc9.z01.azurefd.net/sum
+//curl --header "Content-Type: application/json" --request POST --data '{"num1": 5, "num2": 7}' https://pef-lab-premimum-guarhfaqeydme7ht.z01.azurefd.net/sum
