@@ -68,4 +68,4 @@ jobs:
         with:
           app-name: 'reference-app-one-tme-sbox'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ACE9B2DE678842EEBD38659D8852B1B2 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3A771B20989B452F88ACCCB29B122DF8 }}
