@@ -1,0 +1,8 @@
+Flask==2.3
+gunicorn
+requests
+azure.cosmos
+azure-identity
+azure-keyvault-certificates
+azure-keyvault-secrets
+cryptography

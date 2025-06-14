@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aspnetapp
+  labels:
+    app: aspnetapp
+spec:
+  containers:
+  - image: "crnepeterstmelab1.azurecr.io/sample-toolbox:v1"
+    name: aspnetapp-image
+    imagePullPolicy: Always
+    # Seems like if this is not accurate, it is ignore / service targetport is the one that matters.
+    # ports:
+    # - containerPort: 8080
+    #   protocol: TCP
+    env:
+    - name: TARGET_URL
+      value: "https://afd-api-gateway-msft-lab-bud8haetebggdehn.b02.azurefd.net/hello-east"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aspnetapp
+spec:
+  selector:
+    app: aspnetapp
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aspnetapp
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: aspnetapp
+            port:
+              number: 80
+        pathType: Exact

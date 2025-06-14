@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nepeters-sa
+  annotations:
+    azure.workload.identity/client-id: 978d7e2d-257a-49aa-8387-74a3e1662436 # Managed Identity Client ID
+    azure.workload.identity/tenant-id: 70a036f6-8e4d-4615-bad6-149c02e7720d # TME TENANT ID
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: azure-kv-cert
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: 978d7e2d-257a-49aa-8387-74a3e1662436
+    keyvaultName: akv-tme-lab-one
+    objects: |
+      array:
+        - |
+          objectName: aks-tme-lab-one
+          objectType: secret
+    tenantId: 70a036f6-8e4d-4615-bad6-149c02e7720d
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nepeters-app
+  labels:
+    app: nepeters-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nepeters-app
+  template:
+    metadata:
+      labels:
+        app: nepeters-app
+        azure.workload.identity/use: "true"
+    spec:
+      volumes:
+      - name: cert-volume
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: azure-kv-cert
+      containers:
+      - name: nepeters-app
+        image: crnepeterstmelab1.azurecr.io/sample-toolbox:v4
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+        env:
+        - name: USE_HTTPS
+          value: "true"
+        - name: CERT_PATH
+          value: "/mnt/secrets-store/aks-tme-lab-one.crt"
+        - name: KEY_PATH
+          value: "/mnt/secrets-store/aks-tme-lab-one.key"
+        - name: TARGET_URL
+          value: "https://apim-lab-app-service-westus.azurewebsites.net/"  # Replace with your actual target URL
+        - name: ENABLE_COSMOS_DB
+          value: "false"  # Set to "true" if using Cosmos DB
+        # Optional: Cosmos DB configuration (only needed if ENABLE_COSMOS_DB=true)
+        # - name: COSMOS_ENDPOINT
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: cosmos-secrets
+        #       key: endpoint
+        # - name: COSMOS_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: cosmos-secrets
+        #       key: key
+        # - name: DATABASE_NAME
+        #   value: "your-database-name"
+        # - name: CONTAINER_NAME
+        #   value: "your-container-name"
+        volumeMounts:
+        - name: cert-volume
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      serviceAccountName: nepeters-sa
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nepeters-app
+spec:
+  selector:
+    app: nepeters-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8443
+      targetPort: 8443
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nepeters-app-ingress
+  annotations:
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: aks-tme-lab-one
+    appgw.ingress.kubernetes.io/backend-protocol: https
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/backend-hostname: aks-tme-lab-one.tme.supplychainplatform.microsoft.com
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    appgw.ingress.kubernetes.io/request-timeout: "120"
+    # appgw.ingress.kubernetes.io/ssl-redirect: "true" # Enable SSL termination at the Application Gateway
+    
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: nepeters-app
+            port:
+              number: 8443
+        path: /
+        pathType: ImplementationSpecific

@@ -1,0 +1,59 @@
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: azure-kv-cert
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: "978d7e2d-257a-49aa-8387-74a3e1662436"
+    keyvaultName: "akv-tme-lab-one"
+    objects: |
+      array:
+        - |
+          objectName: aks-tme-lab-one
+          objectType: secret
+    tenantId: "70a036f6-8e4d-4615-bad6-149c02e7720d"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: your-app
+spec:
+  template:
+    spec:
+      volumes:
+      - name: cert-volume
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: azure-kv-cert
+      containers:
+      - name: your-app
+        volumeMounts:
+        - name: cert-volume
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: your-app
+spec:
+  template:
+    spec:
+      volumes:
+      - name: cert-volume
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: azure-kv-cert
+      containers:
+      - name: your-app
+        volumeMounts:
+        - name: cert-volume
+          mountPath: "/mnt/secrets-store"
+          readOnly: true

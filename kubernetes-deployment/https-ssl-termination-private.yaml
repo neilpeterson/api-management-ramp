@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nepeters-app
+  labels:
+    app: nepeters-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nepeters-app
+  template:
+    metadata:
+      labels:
+        app: nepeters-app
+    spec:
+      containers:
+      - name: nepeters-app
+        image: crnepeterstmelab1.azurecr.io/sample-toolbox:v1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nepeters-app
+spec:
+  selector:
+    app: nepeters-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nepeters-app-ingress
+  annotations:
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: aks-tme-lab-one
+    appgw.ingress.kubernetes.io/backend-protocol: http
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/backend-hostname: aks-tme-lab-one.tme.supplychainplatform.microsoft.com
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    appgw.ingress.kubernetes.io/request-timeout: "120"
+    appgw.ingress.kubernetes.io/ssl-redirect: "true" # Enable SSL termination at the Application Gateway
+    appgw.ingress.kubernetes.io/use-private-ip: "true" # Use private IP address for the Application Gateway
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: nepeters-app
+            port:
+              number: 5000
+        path: /
+        pathType: ImplementationSpecific
