@@ -74,6 +74,70 @@ az identity federated-credential create `
 ## CSI Driver Configuration
 
 1. Assign the managed identity to the AKS VMSS instances (seems weird but works.)
+2. Create the SecretProviderClass
+
+```yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: azure-kv-cert
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: 978d7e2d-257a-49aa-8387-74a3e1662436
+    keyvaultName: akv-tme-lab-one
+    objects: |
+      array:
+        - |
+          objectName: aks-tme-lab-one
+          objectType: secret
+    tenantId: 70a036f6-8e4d-4615-bad6-149c02e7720d
+```
+
+Cosume the secret in the pod:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nepeters-app
+  labels:
+    app: nepeters-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nepeters-app
+  template:
+    metadata:
+      labels:
+        app: nepeters-app
+        azure.workload.identity/use: "true"
+    spec:
+      volumes:
+      - name: cert-volume
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: azure-kv-cert
+      containers:
+      - name: nepeters-app
+        image: crnepeterstmelab1.azurecr.io/sample-toolbox:v4
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+        env:
+        volumeMounts:
+        - name: cert-volume
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      serviceAccountName: nepeters-sa
+```
 
 ## Private Ingress Configuration Issue
 
